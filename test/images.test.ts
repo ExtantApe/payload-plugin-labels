@@ -70,7 +70,18 @@ beforeAll(async () => {
   const fake = (await fakeUpload('fake.png', PNG, 'image/png')) as unknown as { id: string | number; filename: string }
   writeFileSync(join(dir, fake.filename), 'not a png at all') // the file on disk is not what its record says
   ids.fake = fake.id
-  for (const [key, source] of [['with-pic', `pics:${ids.pic}`], ['remote', 'https://example.test/x.png'], ['fake', `pics:${ids.fake}`], ['hidden', 'secret-pics:1'], ['other', 'users:1']] as const)
+  // A real-looking PNG header that claims 20,000 x 20,000 pixels, and a file one byte over the size limit.
+  const bomb = Buffer.alloc(33)
+  PNG.subarray(0, 16).copy(bomb)
+  bomb.writeUInt32BE(20000, 16)
+  bomb.writeUInt32BE(20000, 20)
+  const huge = (await fakeUpload('bomb.png', PNG, 'image/png')) as unknown as { id: string | number; filename: string }
+  writeFileSync(join(dir, huge.filename), bomb)
+  ids.bomb = huge.id
+  const big = (await fakeUpload('big.png', PNG, 'image/png')) as unknown as { id: string | number; filename: string }
+  writeFileSync(join(dir, big.filename), Buffer.concat([PNG.subarray(0, 24), Buffer.alloc(5 * 1024 * 1024)]))
+  ids.big = big.id
+  for (const [key, source] of [['with-pic', `pics:${ids.pic}`], ['remote', 'https://example.test/x.png'], ['fake', `pics:${ids.fake}`], ['hidden', 'secret-pics:1'], ['other', 'users:1'], ['bomb', `pics:${ids.bomb}`], ['big', `pics:${ids.big}`]] as const)
     await payload.create({ collection: 'label-templates' as never, data: { name: key, key, collection: 'orders', width: 60, height: 30, elements: tpl(source).elements } as never })
 })
 afterAll(async () => {
@@ -87,11 +98,24 @@ describe('images on the print endpoint', () => {
     expect(txt).toContain('/Subtype /Image')
   })
   it('never fetches a web address, and refuses other collections, unreadable uploads and non-images with a placeholder', async () => {
-    for (const key of ['remote', 'fake', 'hidden', 'other']) {
+    for (const key of ['remote', 'fake', 'hidden', 'other', 'bomb', 'big']) {
       const r = await post({ template: key, ids: [ids.order] })
       expect(r.status).toBe(200)
       expect(Buffer.from(await r.arrayBuffer()).toString('latin1'), key).not.toContain('/Subtype /Image')
     }
+  })
+})
+
+describe('images in a big run', () => {
+  it('embeds one copy per picture: the PDF barely grows with the label count', async () => {
+    const size = async (n: number) => (await post({ template: 'with-pic', ids: [ids.order], copies: n }).then((r) => r.arrayBuffer())).byteLength
+    const one = await size(1)
+    const many = await size(200)
+    // 200 pages of marks add page overhead, but not 200 copies of the picture
+    expect(many).toBeLessThan(one + 200 * 700)
+    const images = async (n: number) => Buffer.from(new Uint8Array(await (await post({ template: 'with-pic', ids: [ids.order], copies: n })).arrayBuffer())).toString('latin1').match(/\/Subtype \/Image/g)?.length
+    // the same number of image objects (the picture and its transparency mask) for 1 label or 50
+    expect(await images(50)).toBe(await images(1))
   })
 })
 
@@ -108,6 +132,12 @@ describe('pruneLabelPrints', () => {
     expect(await count()).toBe(start + 3)
     expect(await pruneLabelPrints(payload, { keepDays: 365 })).toBe(1)
     expect(await pruneLabelPrints(payload)).toBe(1) // the plugin default is 180 days
+    expect(await count()).toBe(start + 1)
+  })
+  it('keeps everything for a setting that is not a whole number of days', async () => {
+    const start = await count()
+    await make(400)
+    for (const keepDays of [0.001, -5, NaN, Infinity, 1.5, '30']) expect(await pruneLabelPrints(payload, { keepDays: keepDays as number })).toBe(0)
     expect(await count()).toBe(start + 1)
   })
 })
