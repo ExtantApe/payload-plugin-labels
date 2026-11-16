@@ -57,3 +57,14 @@ describe('parseMedia', () => {
     expect(typeof parseMedia('roll', 'k', 'n', good)).toBe('string')
   })
 })
+
+describe('print button wiring', () => {
+  it('adds the admin components only to collections named in `collections`', async () => {
+    const { labelsPlugin } = await import('../src/index.js')
+    const cfg = await labelsPlugin({ access: { manage: () => true }, collections: ['orders'] })({ collections: [{ slug: 'orders', fields: [] }, { slug: 'kits', fields: [] }] } as never)
+    const by = (s: string) => cfg.collections!.find((c) => c.slug === s)!
+    expect(by('orders').admin?.components?.beforeListTable).toEqual(['@extantape/payload-plugin-labels/client#ListViewPrintButton'])
+    expect(by('orders').admin?.components?.edit?.beforeDocumentControls).toEqual(['@extantape/payload-plugin-labels/client#EditViewPrintButton'])
+    expect(by('kits').admin?.components).toBeUndefined()
+  })
+})
