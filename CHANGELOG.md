@@ -19,6 +19,7 @@
 - **Print button and dialog** (`./client` export, React). Option `collections` adds a "Print labels" button to those collections' list view (selected rows) and edit view (this document). The dialog is a modal: focus moves in, Tab stays inside, Escape and Close return focus to the button, every control has a label and a visible focus outline. It offers the person's templates for the collection, media (default the template's own), a start-slot grid for sheets (arrow keys, Home and End; each slot is named by number, row and column, and the choice is announced), and copies. Print calls the endpoint and offers Open and Download links to the PDF; the endpoint's message shows in the dialog on a refusal. New dev dependencies for tests: jsdom, React Testing Library; React and `@payloadcms/ui` are optional peers.
   - Tested: in jsdom with fetch mocked: open, focus in, Tab trap, Escape, focus return, the request body, the slot grid by keyboard and its `start`, the template's own media, an endpoint refusal, bad copies, and the config wiring.
   - Not tested: in a real Payload admin (the two thin wrappers in `src/client/admin.tsx` that read the selection and document id are only type-checked), in a browser, with a screen reader, contrast measured, or against a real PDF viewer.
+- **Media bounds (review).** Stored media is refused when a page or roll is over 1,000 mm on a side or a sheet has more than 1,000 labels per page. Tested: 1 new test. Not tested: the dialog with a large legal sheet.
 
 No version bump (still 0.0.0).
 

@@ -39,16 +39,23 @@ const off = (v: unknown): { x: number; y: number } => {
 }
 
 /** Turn a stored media record into a media, or say what is wrong. Sizes are millimeters. */
+/** Upper bounds on stored media, so a record cannot ask for a huge page or millions of slots. */
+export const MAX_MEDIA_MM = 1000
+export const MAX_SHEET_SLOTS = 1000
+
 export function parseMedia(kind: unknown, key: string, name: string, def: unknown): LabelMedia | string {
   const d = (def ?? {}) as Record<string, unknown>
   if (kind === 'thermal') {
     if (!pos(d.width) || !pos(d.height)) return 'That media needs a width and height above zero.'
+    if (d.width > MAX_MEDIA_MM || d.height > MAX_MEDIA_MM) return `That media is larger than ${MAX_MEDIA_MM} mm on a side.`
     const dpi = d.dpi === 300 || d.dpi === 600 ? d.dpi : 203
     return { kind: 'thermal', key, name, width: d.width, height: d.height, gap: num(d.gap) && d.gap >= 0 ? d.gap : 3, dpi, offset: off(d.offset) }
   }
   if (kind === 'sheet') {
     const pg = (d.page ?? {}) as { width?: unknown; height?: unknown }
     if (!pos(pg.width) || !pos(pg.height)) return 'That sheet needs a page width and height above zero.'
+    if (pg.width > MAX_MEDIA_MM || pg.height > MAX_MEDIA_MM) return `That sheet's page is larger than ${MAX_MEDIA_MM} mm on a side.`
+    if (Number.isInteger(d.columns) && Number.isInteger(d.rows) && (d.columns as number) * (d.rows as number) > MAX_SHEET_SLOTS) return `That sheet has more than ${MAX_SHEET_SLOTS} labels per page.`
     const ints = Number.isInteger(d.columns) && Number.isInteger(d.rows) && (d.columns as number) > 0 && (d.rows as number) > 0
     if (!ints || !pos(d.width) || !pos(d.height) || !pos(d.pitchX) || !pos(d.pitchY) || !num(d.top) || !num(d.left) || d.top < 0 || d.left < 0) return 'That sheet needs whole columns and rows, a label size, pitches above zero and margins.'
     const m: SheetMedia = { kind: 'sheet', key, name, page: { width: pg.width, height: pg.height }, columns: d.columns as number, rows: d.rows as number, width: d.width, height: d.height, top: d.top, left: d.left, pitchX: d.pitchX, pitchY: d.pitchY, offset: off(d.offset) }

@@ -68,3 +68,13 @@ describe('print button wiring', () => {
     expect(by('kits').admin?.components).toBeUndefined()
   })
 })
+
+describe('parseMedia upper bounds', () => {
+  const good = { page: { width: 215.9, height: 279.4 }, columns: 2, rows: 2, width: 90, height: 50, top: 10, left: 10, pitchX: 100, pitchY: 60 }
+  it('refuses a huge page, too many slots and a huge roll', () => {
+    expect(parseMedia('sheet', 'k', 'n', { ...good, page: { width: 1e9, height: 1e9 }, width: 1e9 })).toContain('larger than')
+    expect(parseMedia('sheet', 'k', 'n', { ...good, page: { width: 1000, height: 1000 }, columns: 1000, rows: 1000, width: 0.5, height: 0.5, pitchX: 1, pitchY: 1 })).toContain('per page')
+    expect(parseMedia('thermal', 'k', 'n', { width: 5000, height: 50 })).toContain('larger than')
+    expect(typeof parseMedia('sheet', 'k', 'n', { ...good, page: { width: 1000, height: 1000 } })).toBe('object')
+  })
+})
