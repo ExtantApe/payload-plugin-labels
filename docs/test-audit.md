@@ -2,6 +2,12 @@
 
 Newest first.
 
+## 2026-11-16: print endpoint
+
+- Promises: signed-out, no-scope, other-scope template, unreadable record and over-limit requests are refused and print nothing; a good request returns a PDF with one page per label and writes one log entry holding ids and counts only; the log cannot be written through the API.
+- Covered: `test/print.test.ts` (6 tests) on in-memory MongoDB with two sites and site-limited read access on the printed collection.
+- Gaps skipped (and why): HTTP-level routing (Payload's own); the no-`print`-check default and a `print` check returning non-true are covered by the shared access code, not repeated here; render time at 2,000 labels (the test renders 2,000 pages but does not measure time).
+
 ## 2026-11-16: SVG and PDF output
 
 - Promises: a 4 x 6 in label makes a one-page PDF 288 x 432 pt; the SVG viewBox is the label in mm; text is escaped; barcodes render as vectors; an invalid value warns and never crashes either output; both outputs draw one mark list.
