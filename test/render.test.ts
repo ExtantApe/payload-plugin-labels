@@ -57,3 +57,13 @@ describe('SVG', () => {
     expect(renderSvg(again)).toBe(svg)
   })
 })
+
+describe('SVG numbers', () => {
+  it('writes only numbers into attributes, even for odd values that skipped validation', () => {
+    const evil = { type: 'box', x: 1, y: 1, width: 10, height: 10, thickness: '0"/><img src=x onerror=alert(1)>', rotation: '0)"/><script>1</script>' } as never
+    const svg = renderSvg(layout({ key: 'e', size: { width: 50, height: 50 }, elements: [evil] }, {}))
+    expect(svg).not.toContain('<img')
+    expect(svg).not.toContain('<script')
+    expect(svg).not.toContain('onerror')
+  })
+})

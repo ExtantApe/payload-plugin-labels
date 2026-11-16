@@ -53,6 +53,13 @@ describe('fitting', () => {
 })
 
 describe('layout', () => {
+  it('treats non-string content stored before validation as empty', () => {
+    const old = { key: 'old', size: { width: 100, height: 50 }, elements: [{ type: 'text', x: 1, y: 1, width: 50, height: 10, fontSize: 12, content: 42 }] } as unknown as LabelTemplate
+    const r = layout(old, {})
+    expect(r.marks).toHaveLength(1)
+    expect(r.warnings.filter((w) => w.kind === 'invalid-token')).toHaveLength(0)
+  })
+
   const tpl: LabelTemplate = {
     key: 'order-box',
     size: { width: THERMAL_4X6.width, height: THERMAL_4X6.height },
@@ -92,5 +99,15 @@ describe('sheet positions', () => {
     expect(p[0]).toEqual({ page: 0, x: 144.462, y: 241.3 })
     expect(p[1]).toEqual({ page: 1, x: 4.762, y: 12.7 })
     expect(p[2]?.x).toBe(74.612)
+  })
+})
+
+describe('validateElements', () => {
+  it('names the first problem and accepts good elements', async () => {
+    const { validateElements } = await import('../src/core/validate.js')
+    expect(validateElements([{ type: 'line', x: 0, y: 0, width: 10, height: 0, thickness: 0.5 }])).toBeUndefined()
+    expect(validateElements([{ type: 'line', x: 0, y: 0, width: 10, height: 0, thickness: NaN }])).toContain('thickness')
+    expect(validateElements([{ type: 'qr', x: 0, y: 0, width: 10, height: 10 }])).toContain('value')
+    expect(validateElements(Array.from({ length: 201 }, () => ({ type: 'box', x: 0, y: 0, width: 1, height: 1 })))).toContain('at most')
   })
 })
