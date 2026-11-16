@@ -20,8 +20,9 @@ export function layout(template: LabelTemplate, data: unknown, media?: LabelMedi
     const rotation = el.rotation ?? 0
     const base = { x: round(el.x + dx), y: round(el.y + dy), width: el.width, height: el.height, rotation }
     const warn = (kind: Warning['kind'], message: string) => warnings.push({ element: i, kind, message })
-    const tokens = (text: string) => {
-      const r = resolveTokens(text, data, context)
+    // Content saved before validation existed may not be a string; treat it as empty.
+    const tokens = (text: unknown) => {
+      const r = resolveTokens(typeof text === 'string' ? text : '', data, context)
       for (const issue of r.issues) {
         warn(issue.kind, issue.kind === 'missing' ? `No value for {{${issue.token}}}` : `{{${issue.token}}} is not a valid token`)
       }

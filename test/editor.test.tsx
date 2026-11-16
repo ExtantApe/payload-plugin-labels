@@ -93,6 +93,13 @@ describe('TemplateEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Hide layer' }))
     expect(within(screen.getByRole('list', { name: 'Warnings' })).getByText(/Layer 3:/)).toBeTruthy()
   })
+  it('treats non-string content stored before validation as empty', () => {
+    const old = [{ type: 'text', x: 5, y: 5, width: 80, height: 10, fontSize: 14, content: 42 }] as unknown as LabelElement[]
+    render(<TemplateEditor elements={old} onChange={() => {}} size={{ width: 101.6, height: 152.4 }} />)
+    expect(preview().innerHTML).toContain('<svg')
+    expect(options()[0]!.textContent).toContain('1. text')
+  })
+
   it('says so when the sample is not valid JSON, and keeps working', () => {
     render(<Harness />)
     fireEvent.change(screen.getByLabelText('Sample record (JSON)'), { target: { value: '{oops' } })

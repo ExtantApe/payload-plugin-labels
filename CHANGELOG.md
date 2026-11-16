@@ -27,6 +27,8 @@
   - Not tested: the editor in a real browser against a hostile record.
 
 - **Dialog fixes (review).** Print uses `aria-disabled` while busy, so focus stays in the dialog; focus pushed outside (a backdrop click) is brought back; the Tab trap skips controls with `tabindex=-1`; status regions are always on the page and filled later, so screen readers announce them. Tested: 2 new tests in jsdom. Not tested: with a real screen reader, and Payload's select-all across pages (the dialog prints the ids it is given).
+- **Old content (review).** A text, barcode or image value saved before validation existed that is not a string is treated as empty by `layout` and the layers list instead of throwing.
+  - Tested: 2 new tests (layout and editor). Not tested: such a record loaded in the real admin.
 
 No version bump (still 0.0.0).
 

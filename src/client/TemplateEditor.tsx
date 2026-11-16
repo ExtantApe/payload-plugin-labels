@@ -26,7 +26,7 @@ const NEW: Record<LabelElement['type'], LabelElement> = {
   box: { type: 'box', x: 5, y: 5, width: 40, height: 20, thickness: 0.25 },
 }
 
-const name = (el: LabelElement, i: number) => `${i + 1}. ${el.type}${el.type === 'text' ? `: ${el.content.slice(0, 20)}` : ''}`
+const name = (el: LabelElement, i: number) => `${i + 1}. ${el.type}${el.type === 'text' ? `: ${typeof el.content === 'string' ? el.content.slice(0, 20) : ''}` : ''}`
 
 /** Layers list, inspector and live preview for one template. The drag-and-drop canvas is a later addition. */
 export function TemplateEditor({ elements, onChange, size, sample = DEFAULT_SAMPLE }: TemplateEditorProps): ReactNode {
