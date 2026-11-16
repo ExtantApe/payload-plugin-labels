@@ -102,3 +102,22 @@ describe('scope isolation', () => {
     }
   })
 })
+
+describe('template elements are validated before they are stored', () => {
+  const save = (elements: unknown, key: string) => payload.create({ collection: 'label-templates' as never, data: { ...tpl(key, t.a), elements } as never, ...as('alice') })
+  const box = { type: 'box', x: 1, y: 1, width: 10, height: 10 }
+
+  it('refuses a malicious thickness or rotation, so it never reaches the SVG', async () => {
+    await expect(save([{ ...box, thickness: '0"/><img src=x onerror=alert(1)>' }], 'evil-1')).rejects.toThrow()
+    await expect(save([{ ...box, rotation: '0)"/><script>1</script>' }], 'evil-2')).rejects.toThrow()
+    await expect(save([{ ...box, x: Infinity }], 'evil-3')).rejects.toThrow()
+    await expect(save([{ type: 'text', x: 1, y: 1, width: 5, height: 5, fontSize: 9, content: 42 }], 'evil-4')).rejects.toThrow()
+    await expect(save([{ type: 'script', x: 1, y: 1, width: 5, height: 5 }], 'evil-5')).rejects.toThrow()
+    await expect(save('not a list', 'evil-6')).rejects.toThrow()
+    expect(await keys('alice')).not.toContain('evil-1')
+  })
+
+  it('accepts a well-formed template', async () => {
+    await expect(save([box, { type: 'text', x: 1, y: 1, width: 5, height: 5, fontSize: 9, content: 'Hi {{code}}' }], 'fine-1')).resolves.toBeDefined()
+  })
+})

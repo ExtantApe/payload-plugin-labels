@@ -38,6 +38,10 @@
     "./pdf": {
       "types": "./dist/pdf.d.ts",
       "import": "./dist/pdf.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
     }
   },
   "main": "./dist/index.js",
@@ -58,15 +62,23 @@
     "prepublishOnly": "npm run typecheck && npm test"
   },
   "peerDependencies": {
-    "payload": "^3.80.0"
+    "payload": "^3.80.0",
+    "react": "^19.0.0",
+    "@payloadcms/ui": "^3.80.0"
   },
   "devDependencies": {
     "@payloadcms/db-mongodb": "^3.92.1",
+    "@payloadcms/ui": "^3.93.0",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^24.19.2",
     "@types/pdfkit": "^0.17.7",
+    "@types/react": "^19.3.0",
     "graphql": "^16.15.0",
+    "jsdom": "^31.0.1",
     "mongodb-memory-server": "^11.3.0",
     "payload": "^3.92.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "typescript": "^5.9.3",
     "vitest": "^5.1.0"
   },

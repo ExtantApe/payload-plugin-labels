@@ -94,3 +94,13 @@ describe('sheet positions', () => {
     expect(p[2]?.x).toBe(74.612)
   })
 })
+
+describe('validateElements', () => {
+  it('names the first problem and accepts good elements', async () => {
+    const { validateElements } = await import('../src/core/validate.js')
+    expect(validateElements([{ type: 'line', x: 0, y: 0, width: 10, height: 0, thickness: 0.5 }])).toBeUndefined()
+    expect(validateElements([{ type: 'line', x: 0, y: 0, width: 10, height: 0, thickness: NaN }])).toContain('thickness')
+    expect(validateElements([{ type: 'qr', x: 0, y: 0, width: 10, height: 10 }])).toContain('value')
+    expect(validateElements(Array.from({ length: 201 }, () => ({ type: 'box', x: 0, y: 0, width: 1, height: 1 })))).toContain('at most')
+  })
+})
