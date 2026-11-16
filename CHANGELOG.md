@@ -14,6 +14,10 @@
 
 - **Template editor** (`/client`): layers list with keyboard selection and announced reorder, hide and delete; an inspector for position, size, rotation, text, font size, fit rule and barcode settings; a live SVG preview from the same layout as printing, with a sample record and a warnings list. Installed on the `elements` field. New peer dependencies: `react` and `@payloadcms/ui`.
 
+- **Security fix (review).** The `elements` field is validated on save (`validateElements`): known kinds, finite numbers in range, strings where strings belong, fixed lists for enums, at most 200 elements. The SVG writer sends every number through one sanitizer, so a stored value can no longer carry markup into the live preview.
+  - Tested: a malicious thickness and rotation, an infinite position, a non-text content, an unknown kind and a non-list are each refused on save; the SVG of an unvalidated hostile element holds no markup; 4 new tests.
+  - Not tested: the editor in a real browser against a hostile record.
+
 No version bump (still 0.0.0).
 
 Tested: 54 tests with made-up data. Core math and tokens; PDF page count and size (288 x 432 pt for 4 x 6 in), SVG viewBox, text escaping, rotation, vector barcodes, invalid barcode without a crash; the print endpoint on in-memory MongoDB (page count, one log entry with ids only, 2,001-over refusal with count, signed-out, no scope, other site's template, an unreadable record, bad requests); the editor in jsdom (preview follows the sample and inspector edits, edits write back to the elements, keyboard selection and reorder with announcements, hide, delete, add, warnings per layer, invalid sample JSON, every control labeled); config throws with neither access option, manage-only and print-only behavior, and the template lookup order with a stand-in for Payload; a Payload config build checking the collections, default access and strict answers; and an in-memory MongoDB run with two sites proving cross-scope reads, creates, updates, deletes and moves are refused, the shared template is admin-only, the print log is unwritable, and signed-out and scope-less users get nothing.
