@@ -2,6 +2,12 @@
 
 Newest first.
 
+## 2026-11-16: sets
+
+- Promises: a set prints its steps' labels in one PDF with one log entry; steps reach records forward, backward and by chaining; every record is read as the person and one unreadable record refuses the run; the 2,000 cap counts the whole set; another site's set, template or record is refused; only managers change sets.
+- Covered: `test/sets.test.ts` (8 tests): chained run (4 pages, one entry with ids and counts only), forward run, copies and the cap with its number, cross-site set, template and starting record, hidden kit (backward) and cross-site batch (forward) refusing with no log entry, wrong-collection template, signed-out and bad requests, and the set collection's create, update and delete refusals for a non-manager and the other site.
+- Gaps skipped (and why): polymorphic relationships in backward steps (refused as unsupported by design); render time and very large steps (the cap refuses before reading more than the cap); the path-length and from-index refusals are plain input checks.
+
 ## 2026-11-16: sheet media and start slot
 
 - Promises: labels land in the media's grid from the start slot and flow onto new Letter pages; a bad media, a start slot out of range or on thermal, another site's media, a broken stored sheet and an oversized template are refused plainly and log nothing; the template's own media is the default.

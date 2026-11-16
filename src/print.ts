@@ -1,12 +1,13 @@
 import type { Endpoint, PayloadRequest } from 'payload'
 
+import { Refusal, resolveSet, type SetDoc } from './sets.js'
 import { layout, MEDIA_PRESETS, parseMedia, THERMAL_4X6, type LabelElement, type LabelMedia, type LabelTemplate } from './core/index.js'
 
 /** The most labels one request may print (documents times copies). A guess for what renders in a few seconds. */
 export const MAX_LABELS = 2000
 
 export type PrintDeps = {
-  slugs: { templates: string; prints: string; media: string }
+  slugs: { templates: string; prints: string; media: string; sets: string }
   /** `strict` answer of the site's print check. */
   mayPrint: (req: PayloadRequest) => Promise<boolean>
   /** The person's scope: null for none, `{ all: true }` for a platform admin, else `{ id }`. Without a scope field: `{ all: true }`. */
@@ -47,6 +48,24 @@ export async function findMedia(payload: PayloadRequest['payload'], slug: string
   return parseMedia(doc.kind, typeof doc.key === 'string' && doc.key ? doc.key : String(doc.id), String(doc.name ?? ''), doc.definition)
 }
 
+/** A set by key, then by its id as given, read as the person. */
+export async function findSet(payload: PayloadRequest['payload'], slug: string, ref: string, user: unknown): Promise<SetDoc | undefined> {
+  const opts = { user, overrideAccess: false, depth: 0 }
+  const byKey = await payload.find({ collection: slug as never, where: { key: { equals: ref } } as never, limit: 1, ...opts })
+  if (byKey.docs[0]) return byKey.docs[0] as unknown as SetDoc
+  try {
+    return (await payload.findByID({ collection: slug as never, id: ref, ...opts })) as unknown as SetDoc
+  } catch {
+    return undefined
+  }
+}
+
+function checkTemplate(payload: PayloadRequest['payload'], tpl: TemplateDoc): { status: number; message: string } | undefined {
+  if (!Array.isArray(tpl.elements) || !(tpl.width > 0) || !(tpl.height > 0)) return { status: 422, message: 'That template is not complete.' }
+  if (!payload.collections[tpl.collection as never]) return { status: 422, message: 'That template prints from a collection that does not exist.' }
+  return undefined
+}
+
 const refuse = (status: number, message: string) => Response.json({ message }, { status })
 
 /**
@@ -65,28 +84,73 @@ export const printEndpoint = (deps: PrintDeps): Endpoint => ({
     const scope = await deps.scope(req)
     if (!scope) return refuse(403, 'Your account is not set up for any site, so it cannot print labels.')
 
-    let body: { template?: unknown; ids?: unknown; copies?: unknown; media?: unknown; start?: unknown }
+    let body: { template?: unknown; set?: unknown; id?: unknown; ids?: unknown; copies?: unknown; media?: unknown; start?: unknown }
     try {
       body = (await req.json?.()) as typeof body
     } catch {
       return refuse(400, 'The request was not valid JSON.')
     }
-    const ids = Array.isArray(body?.ids) ? [...new Set(body.ids.filter((i): i is string | number => typeof i === 'string' || typeof i === 'number').map(String))] : []
+    const isSet = body?.set !== undefined
     const copies = body?.copies === undefined ? 1 : body.copies
-    if (typeof body?.template !== 'string' && typeof body?.template !== 'number') return refuse(400, 'Say which template to print.')
-    if (!ids.length) return refuse(400, 'Pick at least one document.')
+    if (isSet === (body?.template !== undefined)) return refuse(400, 'Say which template or which set to print.')
     if (typeof copies !== 'number' || !Number.isInteger(copies) || copies < 1) return refuse(400, 'Copies must be a whole number of 1 or more.')
-    if (ids.length * copies > MAX_LABELS) return refuse(413, `That is ${ids.length * copies} labels. One request prints at most ${MAX_LABELS}.`)
+    const tooMany = (n: number) => new Refusal(413, `That is ${n * copies} labels. One request prints at most ${MAX_LABELS}.`)
 
-    // The template: by key first, then by id exactly as given, both as the person (scope rules apply).
-    const tpl = await findTemplate(payload, deps.slugs.templates, String(body.template), user)
-    if (!tpl || tpl.active === false) return refuse(403, 'That template does not exist or you may not use it.')
-    if (!Array.isArray(tpl.elements) || !(tpl.width > 0) || !(tpl.height > 0)) return refuse(422, 'That template is not complete.')
-    if (!payload.collections[tpl.collection as never]) return refuse(422, 'That template prints from a collection that does not exist.')
+    type Job = { tpl: TemplateDoc; doc: unknown }
+    const jobs: Job[] = []
+    let ids: string[] = []
+    let setDoc: SetDoc | undefined
+    let logTemplate: TemplateDoc | undefined
+    try {
+      if (!isSet) {
+        if (typeof body.template !== 'string' && typeof body.template !== 'number') return refuse(400, 'Say which template to print.')
+        ids = Array.isArray(body.ids) ? [...new Set(body.ids.filter((i): i is string | number => typeof i === 'string' || typeof i === 'number').map(String))] : []
+        if (!ids.length) return refuse(400, 'Pick at least one document.')
+        if (ids.length * copies > MAX_LABELS) return refuse(413, `That is ${ids.length * copies} labels. One request prints at most ${MAX_LABELS}.`)
+        // The template: by key first, then by id exactly as given, both as the person (scope rules apply).
+        const tpl = await findTemplate(payload, deps.slugs.templates, String(body.template), user)
+        if (!tpl || tpl.active === false) return refuse(403, 'That template does not exist or you may not use it.')
+        const bad = checkTemplate(payload, tpl)
+        if (bad) return refuse(bad.status, bad.message)
+        logTemplate = tpl
+        // The documents: Payload's own access for their collection, as the person. Any one missing refuses the lot.
+        const docs = await payload.find({ collection: tpl.collection as never, where: { id: { in: ids } } as never, limit: ids.length, pagination: false, user, overrideAccess: false, depth: 3 })
+        if (docs.docs.length !== ids.length) return refuse(403, 'One or more of those documents does not exist or you may not read them. Nothing was printed.')
+        const byId = new Map(docs.docs.map((d) => [String((d as { id: unknown }).id), d]))
+        for (const id of ids) for (let c = 0; c < copies; c++) jobs.push({ tpl, doc: byId.get(id) })
+      } else {
+        const startId = body.id
+        if (typeof body.set !== 'string' && typeof body.set !== 'number') return refuse(400, 'Say which set to print.')
+        if (typeof startId !== 'string' && typeof startId !== 'number') return refuse(400, 'Say which document to start from.')
+        ids = [String(startId)]
+        // The set is read as the person, so scope rules apply to it as to a template.
+        setDoc = await findSet(payload, deps.slugs.sets, String(body.set), user)
+        if (!setDoc || setDoc.active === false) return refuse(403, 'That set does not exist or you may not use it.')
+        const runs = await resolveSet(payload, user, setDoc, startId, Math.floor(MAX_LABELS / copies), tooMany)
+        for (const { step, items } of runs) {
+          const ref = step.template && typeof step.template === 'object' ? (step.template as { id?: unknown }).id : step.template
+          const tpl = typeof ref === 'string' || typeof ref === 'number' ? await findTemplate(payload, deps.slugs.templates, String(ref), user) : undefined
+          if (!tpl || tpl.active === false) return refuse(403, 'A template in that set does not exist or you may not use it.')
+          const bad = checkTemplate(payload, tpl)
+          if (bad) return refuse(bad.status, bad.message)
+          logTemplate ??= tpl
+          for (const it of items) {
+            if (it.collection !== tpl.collection) return refuse(422, `The template ${tpl.key} prints from ${tpl.collection}, but a step of this set reaches ${it.collection}.`)
+            for (let c = 0; c < copies; c++) jobs.push({ tpl, doc: it.doc })
+          }
+        }
+      }
+    } catch (e) {
+      if (e instanceof Refusal) return refuse(e.status, e.message)
+      throw e
+    }
+    if (!jobs.length) return refuse(422, 'There is nothing to print: the set reached no records.')
+    const total = jobs.length
+    if (total > MAX_LABELS) return refuse(413, `That is ${total} labels. One request prints at most ${MAX_LABELS}.`)
 
-    // Media: the request's, else the template's own, else 4 x 6 in thermal. Start slot is 1-based for people.
+    // Media: the request's, else the first template's own, else 4 x 6 in thermal. Start slot is 1-based for people.
     if (body.media !== undefined && typeof body.media !== 'string' && typeof body.media !== 'number') return refuse(400, 'Media must be a media key.')
-    const mediaRef = body.media ?? idOf(tpl.media)
+    const mediaRef = body.media ?? idOf(jobs[0]!.tpl.media)
     const media = mediaRef === undefined ? THERMAL_4X6 : await findMedia(payload, deps.slugs.media, mediaRef, user)
     if (typeof media === 'string') return refuse(body.media === undefined ? 422 : 400, media)
     let start = 0
@@ -96,35 +160,27 @@ export const printEndpoint = (deps: PrintDeps): Endpoint => ({
       if (typeof body.start !== 'number' || !Number.isInteger(body.start) || body.start < 1 || body.start > per) return refuse(400, `The start slot must be a whole number from 1 to ${per} for ${media.name}.`)
       start = body.start - 1
     }
-    if (media.kind === 'sheet' && (tpl.width > media.width + 0.5 || tpl.height > media.height + 0.5)) return refuse(422, `That template (${tpl.width} x ${tpl.height} mm) is larger than the labels on ${media.name} (${media.width} x ${media.height} mm).`)
+    if (media.kind === 'sheet') {
+      for (const { tpl } of jobs) if (tpl.width > media.width + 0.5 || tpl.height > media.height + 0.5) return refuse(422, `That template (${tpl.width} x ${tpl.height} mm) is larger than the labels on ${media.name} (${media.width} x ${media.height} mm).`)
+    }
 
-    // The documents: Payload's own access for their collection, as the person. Any one missing refuses the lot.
-    const docs = await payload.find({ collection: tpl.collection as never, where: { id: { in: ids } } as never, limit: ids.length, pagination: false, user, overrideAccess: false, depth: 3 })
-    if (docs.docs.length !== ids.length) return refuse(403, 'One or more of those documents does not exist or you may not read them. Nothing was printed.')
-    const byId = new Map(docs.docs.map((d) => [String((d as { id: unknown }).id), d]))
-
-    const template: LabelTemplate = { key: tpl.key, size: { width: tpl.width, height: tpl.height }, elements: tpl.elements as LabelElement[] }
-    const total = ids.length * copies
     const printedAt = new Date().toISOString()
     const u = user as { name?: unknown }
-    const results = []
-    let n = 0
-    for (const id of ids) {
-      for (let c = 0; c < copies; c++) {
-        n++
-        results.push(layout(template, byId.get(id), media.kind === 'sheet' ? { ...media, offset: { x: 0, y: 0 } } : media, { label: { number: n, of: total }, printedAt, printedBy: { name: typeof u.name === 'string' ? u.name : '' } }))
-      }
-    }
+    const results = jobs.map(({ tpl, doc }, i) => {
+      const template: LabelTemplate = { key: tpl.key, size: { width: tpl.width, height: tpl.height }, elements: tpl.elements as LabelElement[] }
+      return layout(template, doc, media.kind === 'sheet' ? { ...media, offset: { x: 0, y: 0 } } : media, { label: { number: i + 1, of: total }, printedAt, printedBy: { name: typeof u.name === 'string' ? u.name : '' } })
+    })
     const { renderPdf } = await import('./pdf.js')
     const pdf = await renderPdf(results, media, start)
 
     if (deps.log) {
-      const tplScope = deps.scopeField ? (tpl as unknown as Record<string, unknown>)[deps.scopeField] : undefined
+      const scoped = (setDoc ?? logTemplate) as unknown as Record<string, unknown> | undefined
+      const tplScope = deps.scopeField ? scoped?.[deps.scopeField] : undefined
       const scopeValue = 'id' in scope ? scope.id : tplScope && typeof tplScope === 'object' ? (tplScope as { id?: unknown }).id : tplScope
       try {
         await payload.create({
           collection: deps.slugs.prints as never,
-          data: { template: tpl.id, collection: tpl.collection, documentIds: ids, labelCount: total, printedBy: String((user as { id: unknown }).id), ...(deps.scopeField && scopeValue ? { [deps.scopeField]: scopeValue } : {}) } as never,
+          data: { ...(setDoc ? { set: setDoc.id, collection: setDoc.collection } : { template: logTemplate!.id, collection: logTemplate!.collection }), documentIds: ids, labelCount: total, printedBy: String((user as { id: unknown }).id), ...(deps.scopeField && scopeValue ? { [deps.scopeField]: scopeValue } : {}) } as never,
           overrideAccess: true,
         })
       } catch {
