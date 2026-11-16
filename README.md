@@ -2,7 +2,7 @@
 
 Labels for Payload: design labels with field tokens in the admin, then print one, a few or every label for a document, on thermal rolls or Avery-style sheets.
 
-**Status:** early checkpoint, version 0.0.0, not published. Built and tested (20 tests): the layout engine in `src/core` (field tokens, text fitting, barcode value checks, sheet grid positions, the 4 x 6 inch thermal preset) and the plugin that adds the three collections with write access closed by default. Tested with made-up data and a Payload config build, not against a database. **Not built yet:** PDF printing, barcode drawing, the print endpoint and dialog, the admin inspector and live preview, the label-prints log writes, and site filtering for `scopeField`. The design is in [docs/design.md](docs/design.md).
+**Status:** early checkpoint, version 0.0.0, not published. Built and tested (28 tests): the layout engine in `src/core` (field tokens, text fitting, barcode value checks, sheet grid positions, the 4 x 6 inch thermal preset), and the plugin that adds the three collections with write access closed by default and scope filtering on reads and writes. The scope rules are tested against an in-memory MongoDB with two made-up sites. Not tested with a real site or in a browser. **Not built yet:** PDF printing, barcode drawing, the print endpoint and dialog, the admin inspector and live preview, and the writes to the print log. The design is in [docs/design.md](docs/design.md).
 
 ## What it will do (the plan)
 
@@ -39,13 +39,16 @@ export default buildConfig({
   plugins: [
     labelsPlugin({
       access: { manage: ({ req }) => req.user?.role === 'admin' },
-      // scopeField: 'tenant', scopeCollection: 'tenants',
+      // Per site: scopeField: 'tenant', scopeCollection: 'tenants',
+      //   scopeOf: ({ req }) => (req.user?.role === 'platform' ? ALL_SCOPES : req.user?.tenant),
     }),
   ],
 })
 ```
 
-With no `access` given, nobody can write labels through the API and only signed-in people can read them. A check counts only if it returns exactly `true`; an error counts as no.
+With no `access` given, nobody can write labels through the API and only signed-in people can read them. With `scopeField`, you also give `scopeOf`, which says which site the person belongs to (an id, `ALL_SCOPES` for a platform admin, or nothing). A person reads and writes only their own site's templates, media and print log, and can also read templates with no site, which only a platform admin can change. No site, an error or no sign-in means no access. A record cannot be moved to another site.
+
+A check counts only if it returns exactly `true`; an error counts as no.
 
 The layout engine works on its own, with no Payload and no React: `import { layout, THERMAL_4X6 } from '@extantape/payload-plugin-labels/core'`. `layout(template, record, media)` returns the marks of one label in millimeters, plus warnings for missing values, text that does not fit and marks outside the label. Text width is estimated from character counts until real font metrics arrive with PDF output.
 

@@ -43,10 +43,10 @@ describe('labelsPlugin', () => {
     expect(await call(c.collections.find((x) => x.slug === 'label-templates')!.access.update, { id: '1' })).toBe(false)
   })
   it('adds the scope field, and refuses a scope field without a collection', async () => {
-    const c = await build({ scopeField: 'tenant', scopeCollection: 'tenants' })
+    const c = await build({ scopeField: 'tenant', scopeCollection: 'tenants', scopeOf: () => null })
     const f = c.collections.find((x) => x.slug === 'label-templates')!.fields.map((x) => ('name' in x ? x.name : ''))
     expect(f).toContain('tenant')
-    await expect(build({ scopeField: 'tenant' })).rejects.toThrow(/scopeCollection/)
+    await expect(build({ scopeField: 'tenant', scopeCollection: 'tenants' })).rejects.toThrow(/scopeOf/)
   })
   it('can switch the log off, and keeps providers other plugins added', async () => {
     const c = await build({ log: { enabled: false } }, { custom: { labels: { providers: { kitting: { name: 'Kitting' } } } } })
