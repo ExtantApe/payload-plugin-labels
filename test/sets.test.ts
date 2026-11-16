@@ -173,7 +173,7 @@ describe('the label-sets collection', () => {
     await expect(payload.update({ collection: 'label-sets' as never, id: mine.id, data: { name: 'x' } as never, ...as('viewer') })).rejects.toThrow()
     await expect(payload.delete({ collection: 'label-sets' as never, id: mine.id, ...as('viewer') })).rejects.toThrow()
     await expect(payload.update({ collection: 'label-sets' as never, id: mine.id, data: { name: 'x' } as never, ...as('bob') })).rejects.toThrow()
-    const keys = (await payload.find({ collection: 'label-sets' as never, limit: 50, ...as('bob') })).docs.map((d) => (d as { key: string }).key)
+    const keys = (await payload.find({ collection: 'label-sets' as never, limit: 50, ...as('bob') })).docs.map((d) => (d as unknown as { key: string }).key)
     expect(keys).not.toContain('order-all')
     expect(keys).toContain('b-set')
   })
