@@ -1,13 +1,13 @@
 import type { Endpoint, PayloadRequest } from 'payload'
 
 import { uploadLoader } from './images.js'
-import { layout, resolveImages, THERMAL_4X6, type LabelElement, type LabelTemplate } from './core/index.js'
+import { layout, MEDIA_PRESETS, parseMedia, resolveImages, THERMAL_4X6, type LabelElement, type LabelMedia, type LabelTemplate } from './core/index.js'
 
 /** The most labels one request may print (documents times copies). A guess for what renders in a few seconds. */
 export const MAX_LABELS = 2000
 
 export type PrintDeps = {
-  slugs: { templates: string; prints: string }
+  slugs: { templates: string; prints: string; media: string }
   /** `strict` answer of the site's print check. */
   mayPrint: (req: PayloadRequest) => Promise<boolean>
   /** The person's scope: null for none, `{ all: true }` for a platform admin, else `{ id }`. Without a scope field: `{ all: true }`. */
@@ -17,7 +17,7 @@ export type PrintDeps = {
   log: boolean
 }
 
-type TemplateDoc = { id: string | number; key: string; collection: string; width: number; height: number; elements: unknown; active?: boolean; copies?: number }
+type TemplateDoc = { id: string | number; key: string; collection: string; width: number; height: number; media?: unknown; elements: unknown; active?: boolean; copies?: number }
 
 /** Find a template by key, then by its id as given. Reads as the person, so access and scope rules apply. */
 export async function findTemplate(payload: PayloadRequest['payload'], slug: string, ref: string, user: unknown): Promise<TemplateDoc | undefined> {
@@ -29,6 +29,24 @@ export async function findTemplate(payload: PayloadRequest['payload'], slug: str
   } catch {
     return undefined
   }
+}
+
+const idOf = (v: unknown): string | number | undefined => (v && typeof v === 'object' ? (v as { id?: string | number }).id : typeof v === 'string' || typeof v === 'number' ? v : undefined)
+
+/** A media by preset key, else a stored media by key, then id as given, read as the person. A string is the refusal message. */
+export async function findMedia(payload: PayloadRequest['payload'], slug: string, ref: string | number, user: unknown): Promise<LabelMedia | string> {
+  if (typeof ref === 'string' && Object.hasOwn(MEDIA_PRESETS, ref)) return MEDIA_PRESETS[ref]!
+  const opts = { user, overrideAccess: false, depth: 0 }
+  let doc = (await payload.find({ collection: slug as never, where: { key: { equals: String(ref) } } as never, limit: 1, ...opts })).docs[0] as unknown as Record<string, unknown> | undefined
+  if (!doc) {
+    try {
+      doc = (await payload.findByID({ collection: slug as never, id: ref, ...opts })) as unknown as Record<string, unknown>
+    } catch {
+      doc = undefined
+    }
+  }
+  if (!doc) return 'That media does not exist or you may not use it.'
+  return parseMedia(doc.kind, typeof doc.key === 'string' && doc.key ? doc.key : String(doc.id), String(doc.name ?? ''), doc.definition)
 }
 
 const refuse = (status: number, message: string) => Response.json({ message }, { status })
@@ -49,7 +67,7 @@ export const printEndpoint = (deps: PrintDeps): Endpoint => ({
     const scope = await deps.scope(req)
     if (!scope) return refuse(403, 'Your account is not set up for any site, so it cannot print labels.')
 
-    let body: { template?: unknown; ids?: unknown; copies?: unknown }
+    let body: { template?: unknown; ids?: unknown; copies?: unknown; media?: unknown; start?: unknown }
     try {
       body = (await req.json?.()) as typeof body
     } catch {
@@ -68,6 +86,20 @@ export const printEndpoint = (deps: PrintDeps): Endpoint => ({
     if (!Array.isArray(tpl.elements) || !(tpl.width > 0) || !(tpl.height > 0)) return refuse(422, 'That template is not complete.')
     if (!payload.collections[tpl.collection as never]) return refuse(422, 'That template prints from a collection that does not exist.')
 
+    // Media: the request's, else the template's own, else 4 x 6 in thermal. Start slot is 1-based for people.
+    if (body.media !== undefined && typeof body.media !== 'string' && typeof body.media !== 'number') return refuse(400, 'Media must be a media key.')
+    const mediaRef = body.media ?? idOf(tpl.media)
+    const media = mediaRef === undefined ? THERMAL_4X6 : await findMedia(payload, deps.slugs.media, mediaRef, user)
+    if (typeof media === 'string') return refuse(body.media === undefined ? 422 : 400, media)
+    let start = 0
+    if (body.start !== undefined) {
+      if (media.kind !== 'sheet') return refuse(400, 'A start slot only applies to sheet media.')
+      const per = media.columns * media.rows
+      if (typeof body.start !== 'number' || !Number.isInteger(body.start) || body.start < 1 || body.start > per) return refuse(400, `The start slot must be a whole number from 1 to ${per} for ${media.name}.`)
+      start = body.start - 1
+    }
+    if (media.kind === 'sheet' && (tpl.width > media.width + 0.5 || tpl.height > media.height + 0.5)) return refuse(422, `That template (${tpl.width} x ${tpl.height} mm) is larger than the labels on ${media.name} (${media.width} x ${media.height} mm).`)
+
     // The documents: Payload's own access for their collection, as the person. Any one missing refuses the lot.
     const docs = await payload.find({ collection: tpl.collection as never, where: { id: { in: ids } } as never, limit: ids.length, pagination: false, user, overrideAccess: false, depth: 3 })
     if (docs.docs.length !== ids.length) return refuse(403, 'One or more of those documents does not exist or you may not read them. Nothing was printed.')
@@ -82,13 +114,13 @@ export const printEndpoint = (deps: PrintDeps): Endpoint => ({
     for (const id of ids) {
       for (let c = 0; c < copies; c++) {
         n++
-        results.push(layout(template, byId.get(id), THERMAL_4X6, { label: { number: n, of: total }, printedAt, printedBy: { name: typeof u.name === 'string' ? u.name : '' } }))
+        results.push(layout(template, byId.get(id), media.kind === 'sheet' ? { ...media, offset: { x: 0, y: 0 } } : media, { label: { number: n, of: total }, printedAt, printedBy: { name: typeof u.name === 'string' ? u.name : '' } }))
       }
     }
     const load = uploadLoader({ payload, user, uploads: deps.uploads })
     const withImages = await Promise.all(results.map((r) => (r.marks.some((m) => m.type === 'image') ? resolveImages(r, load) : r)))
     const { renderPdf } = await import('./pdf.js')
-    const pdf = await renderPdf(withImages)
+    const pdf = await renderPdf(withImages, media, start)
 
     if (deps.log) {
       const tplScope = deps.scopeField ? (tpl as unknown as Record<string, unknown>)[deps.scopeField] : undefined

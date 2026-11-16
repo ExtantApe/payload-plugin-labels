@@ -20,11 +20,20 @@
 - **Image and retention fixes (review).** The file size is checked with `stat` before the file is read; one request loads at most 25 MB of pictures in total; a PNG over 16 megapixels is refused from its header before it can inflate; each picture is embedded once per PDF and reused by every label; upload collections with `disableLocalStorage` (what storage adapters set) are refused; a relative `staticDir` resolves against the server's working folder. `pruneLabelPrints` keeps everything unless `keepDays` is a whole number of 1 or more, logs bulk-delete errors, and says it covers every site.
   - Tested: a PNG header claiming 20,000 x 20,000 pixels and a file over 5 MB are each refused with a placeholder; image objects in the PDF are the same for 1 label and 50, and 200 labels stay under a small size bound; retention keeps everything for 0.001, negative, NaN, Infinity, 1.5 and a string. 2 new tests plus extended cases.
   - Not tested: a real storage adapter, a real 16 megapixel PNG decode.
+
+- **Sheet media.** `renderPdf(labels, media, start)` places labels on Letter pages in the media's grid from a start slot and flows onto new pages. Presets `avery-5160` (3 x 10) and `avery-5163` (2 x 5). `parseMedia` checks stored media records. The print endpoint takes `media` (a preset key, or a stored media by key or id; default is the template's own media, else 4 x 6 in thermal) and `start` (1-based, sheets only). It refuses an unknown or broken media, another site's media, a start slot out of range, and a template larger than the sheet's labels, each with a plain message and nothing logged. Media records get an optional `key`. Sets are not built.
+  - Tested: slot math, page size in points (612 x 792), page counts with and without a start slot, endpoint refusals and happy paths on in-memory MongoDB.
+  - Not tested: Avery measurements against a printed sheet (taken from published sizes), printing at 100% on a real printer, sets.
+
+- **Media bounds (review).** Stored media is refused when a page or roll is over 1,000 mm on a side or a sheet has more than 1,000 labels per page. Tested: 1 new test. Not tested: the dialog with a large legal sheet.
 - **Template editor** (`/client`): layers list with keyboard selection and announced reorder, hide and delete; an inspector for position, size, rotation, text, font size, fit rule and barcode settings; a live SVG preview from the same layout as printing, with a sample record and a warnings list. Installed on the `elements` field. New peer dependencies: `react` and `@payloadcms/ui`.
 
 - **Security fix (review).** The `elements` field is validated on save (`validateElements`): known kinds, finite numbers in range, strings where strings belong, fixed lists for enums, at most 200 elements. The SVG writer sends every number through one sanitizer, so a stored value can no longer carry markup into the live preview.
   - Tested: a malicious thickness and rotation, an infinite position, a non-text content, an unknown kind and a non-list are each refused on save; the SVG of an unvalidated hostile element holds no markup; 4 new tests.
   - Not tested: the editor in a real browser against a hostile record.
+
+- **Old content (review).** A text, barcode or image value saved before validation existed that is not a string is treated as empty by `layout` and the layers list instead of throwing.
+  - Tested: 2 new tests (layout and editor). Not tested: such a record loaded in the real admin.
 
 No version bump (still 0.0.0).
 

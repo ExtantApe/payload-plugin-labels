@@ -1,6 +1,6 @@
 import PDFDocument from 'pdfkit'
 
-import { MM_PER_POINT, barcodePlacement, barcodeVector, type LayoutResult, type Mark } from './core/index.js'
+import { MM_PER_POINT, barcodePlacement, barcodeVector, sheetPositions, type LabelMedia, type LayoutResult, type Mark } from './core/index.js'
 
 const pt = (mm: number) => mm / MM_PER_POINT
 
@@ -52,8 +52,12 @@ function drawMark(doc: PDFKit.PDFDocument, m: Mark, images: WeakMap<Uint8Array, 
   doc.restore()
 }
 
-/** One page per label, each page the label's size, drawn from the same marks as the SVG preview. */
-export function renderPdf(labels: LayoutResult[]): Promise<Uint8Array> {
+/**
+ * Thermal (or no media): one page per label, each page the label's size. Sheet: pages the size of the sheet, labels in
+ * the grid from the 0-based `start` slot, flowing onto new pages. The sheet's calibration offset is applied once, here,
+ * so lay the labels out with a zero offset.
+ */
+export function renderPdf(labels: LayoutResult[], media?: LabelMedia, start = 0): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ autoFirstPage: false, margin: 0, info: { Title: 'Labels' } })
     const chunks: Buffer[] = []
@@ -61,9 +65,25 @@ export function renderPdf(labels: LayoutResult[]): Promise<Uint8Array> {
     doc.on('end', () => resolve(new Uint8Array(Buffer.concat(chunks))))
     doc.on('error', reject)
     const images = new WeakMap<Uint8Array, Opened>()
-    for (const l of labels) {
-      doc.addPage({ size: [pt(l.width), pt(l.height)], margin: 0 })
-      for (const m of l.marks) drawMark(doc, m, images)
+    if (media?.kind === 'sheet') {
+      const spots = sheetPositions(media, labels.length, start)
+      let page = -1
+      labels.forEach((l, i) => {
+        const s = spots[i]!
+        while (page < s.page) {
+          doc.addPage({ size: [pt(media.page.width), pt(media.page.height)], margin: 0 })
+          page++
+        }
+        doc.save().translate(pt(s.x), pt(s.y))
+        for (const m of l.marks) drawMark(doc, m, images)
+        doc.restore()
+      })
+      if (page < 0) doc.addPage({ size: [pt(media.page.width), pt(media.page.height)], margin: 0 })
+    } else {
+      for (const l of labels) {
+        doc.addPage({ size: [pt(l.width), pt(l.height)], margin: 0 })
+        for (const m of l.marks) drawMark(doc, m, images)
+      }
     }
     doc.end()
   })
