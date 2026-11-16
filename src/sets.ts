@@ -79,6 +79,8 @@ async function backward(payload: Payload, user: unknown, from: Item[], collectio
     const where = { [field]: { equals: (it.doc as { id: unknown }).id } }
     const readable = await payload.find({ collection: collection as never, where: where as never, limit: limit + 1, user, overrideAccess: false, depth: 3 } as never)
     // A filtered read hides records without saying so. Compare with the real count and refuse if any are hidden.
+    // This costs a find plus a count per source record. One query over all sources would be cheaper, but it
+    // would lose the print order (records grouped by source) and the early stop at the limit, so it stays per record.
     const real = await payload.count({ collection: collection as never, where: where as never, overrideAccess: true })
     if (real.totalDocs !== readable.docs.length) throw new Refusal(403, `Some ${collection} records in this set may not be read by you. Nothing was printed.`)
     for (const d of readable.docs) out.set(String((d as { id: unknown }).id), { collection, doc: d as unknown as Record<string, unknown> })
