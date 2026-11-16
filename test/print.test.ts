@@ -4,6 +4,7 @@ import { buildConfig, getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { ALL_SCOPES, labelsPlugin, MAX_LABELS } from '../src/index.js'
+import { findTemplate } from '../src/print.js'
 
 /** Two made-up sites. Orders are readable only by users of their own site, so the print route must follow that. */
 let payload: Payload
@@ -108,5 +109,24 @@ describe('POST /labels/print', () => {
   })
   it('the log cannot be written through the API', async () => {
     await expect(payload.create({ collection: 'label-prints' as never, data: { collection: 'orders', tenant: t.a } as never, user: { collection: 'users', ...u.alice } as never, overrideAccess: false })).rejects.toThrow()
+  })
+
+  it('looks a template up by key first, then by the id exactly as given', async () => {
+    const calls: string[] = []
+    const fake = {
+      find: async (a: { where: { key: { equals: string } } }) => {
+        calls.push(`find:${a.where.key.equals}`)
+        return { docs: a.where.key.equals === 'known-key' ? [{ id: 7, key: 'known-key' }] : [] }
+      },
+      findByID: async (a: { id: string; overrideAccess: boolean }) => {
+        calls.push(`id:${a.id}:${a.overrideAccess}`)
+        if (a.id === '42') return { id: 42, key: 'numeric' }
+        throw new Error('not found')
+      },
+    }
+    expect((await findTemplate(fake as never, 'label-templates', 'known-key', {}))?.id).toBe(7)
+    expect((await findTemplate(fake as never, 'label-templates', '42', {}))?.id).toBe(42)
+    expect(await findTemplate(fake as never, 'label-templates', '99', {})).toBeUndefined()
+    expect(calls).toEqual(['find:known-key', 'find:42', 'id:42:false', 'find:99', 'id:99:false'])
   })
 })

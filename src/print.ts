@@ -15,6 +15,20 @@ export type PrintDeps = {
   log: boolean
 }
 
+type TemplateDoc = { id: string | number; key: string; collection: string; width: number; height: number; elements: unknown; active?: boolean; copies?: number }
+
+/** Find a template by key, then by its id as given. Reads as the person, so access and scope rules apply. */
+export async function findTemplate(payload: PayloadRequest['payload'], slug: string, ref: string, user: unknown): Promise<TemplateDoc | undefined> {
+  const opts = { user, overrideAccess: false, depth: 0 } as never
+  const byKey = await payload.find({ collection: slug as never, where: { key: { equals: ref } } as never, limit: 1, ...(opts as object) })
+  if (byKey.docs[0]) return byKey.docs[0] as unknown as TemplateDoc
+  try {
+    return (await payload.findByID({ collection: slug as never, id: ref, ...(opts as object) })) as unknown as TemplateDoc
+  } catch {
+    return undefined
+  }
+}
+
 const refuse = (status: number, message: string) => Response.json({ message }, { status })
 
 /**
@@ -46,16 +60,8 @@ export const printEndpoint = (deps: PrintDeps): Endpoint => ({
     if (typeof copies !== 'number' || !Number.isInteger(copies) || copies < 1) return refuse(400, 'Copies must be a whole number of 1 or more.')
     if (ids.length * copies > MAX_LABELS) return refuse(413, `That is ${ids.length * copies} labels. One request prints at most ${MAX_LABELS}.`)
 
-    // The template: by key or id, through the same scope rules as reading it in the admin.
-    const found = await payload.find({
-      collection: deps.slugs.templates as never,
-      where: { or: [{ key: { equals: String(body.template) } }, ...(/^[0-9a-f]{24}$/i.test(String(body.template)) || typeof body.template === 'number' ? [{ id: { equals: body.template } }] : [])] } as never,
-      limit: 1,
-      user,
-      overrideAccess: false,
-      depth: 0,
-    })
-    const tpl = found.docs[0] as unknown as { id: string | number; key: string; collection: string; width: number; height: number; elements: unknown; active?: boolean; copies?: number } | undefined
+    // The template: by key first, then by id exactly as given, both as the person (scope rules apply).
+    const tpl = await findTemplate(payload, deps.slugs.templates, String(body.template), user)
     if (!tpl || tpl.active === false) return refuse(403, 'That template does not exist or you may not use it.')
     if (!Array.isArray(tpl.elements) || !(tpl.width > 0) || !(tpl.height > 0)) return refuse(422, 'That template is not complete.')
     if (!payload.collections[tpl.collection as never]) return refuse(422, 'That template prints from a collection that does not exist.')

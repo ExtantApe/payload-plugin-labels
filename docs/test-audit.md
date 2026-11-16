@@ -2,6 +2,12 @@
 
 Newest first.
 
+## 2026-11-16: fail closed and template lookup
+
+- Promises: with neither `access.manage` nor `access.print` the config throws and names them; manage-only means a plain signed-in member can neither print nor read templates; print-only lets printers print and read templates but not change them or read the log; a template is found by key, then by id as given.
+- Covered: three tests in `test/plugin.test.ts` and one in `test/print.test.ts` (the lookup uses a stand-in for Payload, so it does not depend on Mongo ids).
+- Gaps skipped (and why): numeric ids on a real Postgres or SQLite (needs another database; the lookup passes the id through unchanged).
+
 ## 2026-11-16: print endpoint
 
 - Promises: signed-out, no-scope, other-scope template, unreadable record and over-limit requests are refused and print nothing; a good request returns a PDF with one page per label and writes one log entry holding ids and counts only; the log cannot be written through the API.

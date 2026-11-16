@@ -54,13 +54,15 @@ export const PRINTS_SLUG = 'label-prints'
 export const labelsPlugin =
   (options: LabelsOptions = {}): Plugin =>
   (config: Config): Config => {
+    if (!options.access?.manage && !options.access?.print) {
+      throw new Error('labels: set access.manage (who may change templates and media) or access.print (who may print). With neither, nobody could use the plugin.')
+    }
     const field = options.scopeField
     if (field && (!options.scopeCollection || !options.scopeOf)) throw new Error('labels: scopeField needs scopeCollection and scopeOf')
     const manage = strict(options.access?.manage)
     const print = strict(options.access?.print)
-    // Reading needs a person who may print or manage. With neither check given, a signed-in user may read.
-    const read: Access = async (args) =>
-      options.access?.print || options.access?.manage ? (await print(args)) === true || (await manage(args)) === true : Boolean(args.req.user)
+    // Reading templates and media needs a person who may manage or print (printing reads the template). No fallback.
+    const read: Access = async (args) => (await manage(args)) === true || (await print(args)) === true
     // With a scope field, every answer is narrowed to the person's own scope. No scope means no access.
     const scoped = (base: Access, shared: boolean): Access => async (args) => {
       const ok = await base(args)
@@ -148,8 +150,8 @@ export const labelsPlugin =
 
     const endpoint = printEndpoint({
       slugs: { templates: TEMPLATES_SLUG, prints: PRINTS_SLUG },
-      // Without a print check, any signed-in person may print what they can read. With one, only exactly true passes.
-      mayPrint: async (req) => (options.access?.print ? (await print({ req } as never)) === true : Boolean(req.user)),
+      // access.print decides printing; without it, only access.manage may print. Only exactly true passes.
+      mayPrint: async (req) => (options.access?.print ? (await print({ req } as never)) === true : (await manage({ req } as never)) === true),
       scope: async (req) => {
         if (!field) return { all: true }
         const who = await scopeFor(options, req)

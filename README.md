@@ -2,7 +2,7 @@
 
 Labels for Payload: design labels with field tokens in the admin, then print one, a few or every label for a document, on thermal rolls or Avery-style sheets.
 
-**Status:** early checkpoint, version 0.0.0, not published. Built and tested (40 tests): the layout engine in `src/core` (field tokens, text fitting, barcode value checks, sheet grid positions, the 4 x 6 inch thermal preset), and the plugin that adds the three collections with write access closed by default and scope filtering on reads and writes, plus SVG and PDF output drawn from the layout marks, with barcodes, QR and Data Matrix as vectors (bwip-js), and the print endpoint `POST /api/labels/print`. The scope rules are tested against an in-memory MongoDB with two made-up sites. The PDF was checked for page count and page size in points, not opened in a printer or viewer; the SVG was checked as text, not in a browser; no barcode has been scanned. The endpoint is tested by calling its handler against an in-memory MongoDB, not over HTTP. **Not built yet:** sheet (Avery) pages, images in output, sets, the print dialog and button, the admin inspector and live preview. The design is in [docs/design.md](docs/design.md).
+**Status:** early checkpoint, version 0.0.0, not published. Built and tested (44 tests): the layout engine in `src/core` (field tokens, text fitting, barcode value checks, sheet grid positions, the 4 x 6 inch thermal preset), and the plugin that adds the three collections with write access closed by default and scope filtering on reads and writes, plus SVG and PDF output drawn from the layout marks, with barcodes, QR and Data Matrix as vectors (bwip-js), and the print endpoint `POST /api/labels/print`. The scope rules are tested against an in-memory MongoDB with two made-up sites. The PDF was checked for page count and page size in points, not opened in a printer or viewer; the SVG was checked as text, not in a browser; no barcode has been scanned. The endpoint is tested by calling its handler against an in-memory MongoDB, not over HTTP. **Not built yet:** sheet (Avery) pages, images in output, sets, the print dialog and button, the admin inspector and live preview. The design is in [docs/design.md](docs/design.md).
 
 ## What it will do (the plan)
 
@@ -38,7 +38,10 @@ import { labelsPlugin } from '@extantape/payload-plugin-labels'
 export default buildConfig({
   plugins: [
     labelsPlugin({
-      access: { manage: ({ req }) => req.user?.role === 'admin' },
+      access: {
+        manage: ({ req }) => req.user?.role === 'admin',
+        print: ({ req }) => Boolean(req.user?.canPrint),
+      },
       // Per site: scopeField: 'tenant', scopeCollection: 'tenants',
       //   scopeOf: ({ req }) => (req.user?.role === 'platform' ? ALL_SCOPES : req.user?.tenant),
     }),
@@ -46,13 +49,13 @@ export default buildConfig({
 })
 ```
 
-With no `access` given, nobody can write labels through the API and only signed-in people can read them. With `scopeField`, you also give `scopeOf`, which says which site the person belongs to (an id, `ALL_SCOPES` for a platform admin, or nothing). A person reads and writes only their own site's templates, media and print log, and can also read templates with no site, which only a platform admin can change. No site, an error or no sign-in means no access. A record cannot be moved to another site.
+You must set `access.manage` (who may change templates and media), `access.print` (who may print), or both. With neither, the plugin throws when the config loads and names the missing option. Nobody is allowed by default. Only an answer of exactly `true` passes. Templates and media can be read by people the `manage` or `print` check allows, and the print log only by `manage`. With `scopeField`, you also give `scopeOf`, which says which site the person belongs to (an id, `ALL_SCOPES` for a platform admin, or nothing). A person reads and writes only their own site's templates, media and print log, and can also read templates with no site, which only a platform admin can change. No site, an error or no sign-in means no access. A record cannot be moved to another site.
 
-A check counts only if it returns exactly `true`; an error counts as no.
+
 
 The layout engine works on its own, with no Payload and no React: `import { layout, THERMAL_4X6 } from '@extantape/payload-plugin-labels/core'`. `layout(template, record, media)` returns the marks of one label in millimeters, plus warnings for missing values, text that does not fit and marks outside the label. Text width is estimated from character counts, so fitting is approximate.
 
-Printing: `POST /api/labels/print` with `{ "template": "<key or id>", "ids": [...], "copies": 1 }` returns a PDF, one label per page. It needs a signed-in person with the `print` check (or, with no `print` check given, any signed-in person), a scope when `scopeField` is set, a template in their scope, and read access to every document through Payload's own rules for that collection. If any document is missing or unreadable, nothing prints. A request over 2,000 labels (documents times copies) is refused with its count. Each print writes one log entry with the template, collection, document ids, label count and who printed, and never the label text. If the log write fails, nothing is returned. The 4 x 6 in thermal media is used for every template for now.
+Printing: `POST /api/labels/print` with `{ "template": "<key or id>", "ids": [...], "copies": 1 }` returns a PDF, one label per page. It needs a signed-in person with the `print` check (or, with no `print` check, the `manage` check), a scope when `scopeField` is set, a template in their scope, and read access to every document through Payload's own rules for that collection. If any document is missing or unreadable, nothing prints. A request over 2,000 labels (documents times copies) is refused with its count. Each print writes one log entry with the template, collection, document ids, label count and who printed, and never the label text. If the log write fails, nothing is returned. The 4 x 6 in thermal media is used for every template for now.
 
 Output: `renderSvg(layoutResult)` (in `/core`) gives an SVG in millimeters for previews. `renderPdf([layoutResult, ...])` from `@extantape/payload-plugin-labels/pdf` gives a PDF with one label per page, each page the label's size. Both draw the same marks. Images draw as a placeholder box for now.
 
