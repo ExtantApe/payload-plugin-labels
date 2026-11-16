@@ -123,7 +123,7 @@ describe('print sets', () => {
     const before = (await logs()).length
     const res = await post('alice', { set: 'order-all', id: id.order1, copies: 501 })
     expect(res.status).toBe(413)
-    expect((await res.json()).message).toContain(`${4 * 501}`)
+    expect(((await res.json()) as { message: string }).message).toContain(`${4 * 501}`)
     expect(MAX_LABELS).toBe(2000)
     expect((await logs()).length).toBe(before)
   })
@@ -143,7 +143,7 @@ describe('print sets', () => {
     const before = (await logs()).length
     const hidden = await post('alice', { set: 'order-all', id: id.order2 })
     expect(hidden.status).toBe(403)
-    expect((await hidden.json()).message).toContain('Nothing was printed')
+    expect(((await hidden.json()) as { message: string }).message).toContain('Nothing was printed')
     // order3's kit points at a batch of the other site
     expect((await post('alice', { set: 'order-all', id: id.order3 })).status).toBe(403)
     expect((await logs()).length).toBe(before)
