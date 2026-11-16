@@ -113,7 +113,7 @@ export const labelsPlugin =
         { name: 'width', type: 'number', required: true, min: 1, admin: { description: 'Millimeters.' } },
         { name: 'height', type: 'number', required: true, min: 1, admin: { description: 'Millimeters.' } },
         { name: 'media', type: 'relationship', relationTo: MEDIA_SLUG },
-        { name: 'elements', type: 'json', required: true, defaultValue: [] },
+        { name: 'elements', type: 'json', required: true, defaultValue: [], admin: { components: { Field: '@extantape/payload-plugin-labels/client#TemplateEditorField' } } },
         { name: 'repeat', type: 'text' },
         { name: 'copies', type: 'number', defaultValue: 1, min: 1 },
         { name: 'active', type: 'checkbox', defaultValue: true },
