@@ -2,9 +2,9 @@
 
 Labels for Payload: design labels with field tokens in the admin, then print one, a few or every label for a document, on thermal rolls or Avery-style sheets.
 
-**Status:** design only. No code yet, so nothing is tested. The build starts after a planned site tour, in three phases: 0.1 prints PDFs with form-based editing and a live preview, 0.2 adds a drag-and-drop label editor, 0.3 adds ZPL for Zebra printers. The design is in [docs/design.md](docs/design.md).
+**Status:** early checkpoint, version 0.0.0, not published. Built and tested (20 tests): the layout engine in `src/core` (field tokens, text fitting, barcode value checks, sheet grid positions, the 4 x 6 inch thermal preset) and the plugin that adds the three collections with write access closed by default. Tested with made-up data and a Payload config build, not against a database. **Not built yet:** PDF printing, barcode drawing, the print endpoint and dialog, the admin inspector and live preview, the label-prints log writes, and site filtering for `scopeField`. The design is in [docs/design.md](docs/design.md).
 
-## What it will do
+## What it will do (the plan)
 
 - A label builder in the admin: pick the label size and the roll or sheet, then place text, barcodes, QR codes, images and lines. Field tokens such as `{{order.customer.name}}` fill them from the document, so labels always carry live data.
 - A "Print labels" menu on each document: print one label, a few, or every label that belongs to it, such as an order's box label and one label per kit.
@@ -14,7 +14,7 @@ Labels for Payload: design labels with field tokens in the admin, then print one
 
 ## On its own, and with others
 
-Nothing here is built yet, so this is the plan from [docs/design.md](docs/design.md).
+This part is still the plan from [docs/design.md](docs/design.md).
 
 **On its own:** Labels will work on any Payload site with no other plugin. You design labels in the admin from your own collections' fields, and print them from each document.
 
@@ -28,7 +28,26 @@ Nothing here is built yet, so this is the plan from [docs/design.md](docs/design
 
 ## Install or build
 
-Not published yet. It will be `@extantape/payload-plugin-labels` on npm.
+Not published yet. It will be `@extantape/payload-plugin-labels` on npm. To build it here: `npm install`, `npm test`, `npm run build`.
+
+## Use
+
+```ts
+import { labelsPlugin } from '@extantape/payload-plugin-labels'
+
+export default buildConfig({
+  plugins: [
+    labelsPlugin({
+      access: { manage: ({ req }) => req.user?.role === 'admin' },
+      // scopeField: 'tenant', scopeCollection: 'tenants',
+    }),
+  ],
+})
+```
+
+With no `access` given, nobody can write labels through the API and only signed-in people can read them. A check counts only if it returns exactly `true`; an error counts as no.
+
+The layout engine works on its own, with no Payload and no React: `import { layout, THERMAL_4X6 } from '@extantape/payload-plugin-labels/core'`. `layout(template, record, media)` returns the marks of one label in millimeters, plus warnings for missing values, text that does not fit and marks outside the label. Text width is estimated from character counts until real font metrics arrive with PDF output.
 
 ## License
 
