@@ -2,7 +2,7 @@
 
 Labels for Payload: design labels with field tokens in the admin, then print one, a few or every label for a document, on thermal rolls or Avery-style sheets.
 
-**Status:** early checkpoint, version 0.0.0, not published. Built and tested (28 tests): the layout engine in `src/core` (field tokens, text fitting, barcode value checks, sheet grid positions, the 4 x 6 inch thermal preset), and the plugin that adds the three collections with write access closed by default and scope filtering on reads and writes. The scope rules are tested against an in-memory MongoDB with two made-up sites. Not tested with a real site or in a browser. **Not built yet:** PDF printing, barcode drawing, the print endpoint and dialog, the admin inspector and live preview, and the writes to the print log. The design is in [docs/design.md](docs/design.md).
+**Status:** early checkpoint, version 0.0.0, not published. Built and tested (34 tests): the layout engine in `src/core` (field tokens, text fitting, barcode value checks, sheet grid positions, the 4 x 6 inch thermal preset), and the plugin that adds the three collections with write access closed by default and scope filtering on reads and writes, plus SVG and PDF output drawn from the layout marks, with barcodes, QR and Data Matrix as vectors (bwip-js). The scope rules are tested against an in-memory MongoDB with two made-up sites. The PDF was checked for page count and page size in points, not opened in a printer or viewer; the SVG was checked as text, not in a browser; no barcode has been scanned. **Not built yet:** sheet (Avery) pages, images in output, the print endpoint and dialog, the admin inspector and live preview, and the writes to the print log. The design is in [docs/design.md](docs/design.md).
 
 ## What it will do (the plan)
 
@@ -50,7 +50,9 @@ With no `access` given, nobody can write labels through the API and only signed-
 
 A check counts only if it returns exactly `true`; an error counts as no.
 
-The layout engine works on its own, with no Payload and no React: `import { layout, THERMAL_4X6 } from '@extantape/payload-plugin-labels/core'`. `layout(template, record, media)` returns the marks of one label in millimeters, plus warnings for missing values, text that does not fit and marks outside the label. Text width is estimated from character counts until real font metrics arrive with PDF output.
+The layout engine works on its own, with no Payload and no React: `import { layout, THERMAL_4X6 } from '@extantape/payload-plugin-labels/core'`. `layout(template, record, media)` returns the marks of one label in millimeters, plus warnings for missing values, text that does not fit and marks outside the label. Text width is estimated from character counts, so fitting is approximate.
+
+Output: `renderSvg(layoutResult)` (in `/core`) gives an SVG in millimeters for previews. `renderPdf([layoutResult, ...])` from `@extantape/payload-plugin-labels/pdf` gives a PDF with one label per page, each page the label's size. Both draw the same marks. Images draw as a placeholder box for now.
 
 ## License
 

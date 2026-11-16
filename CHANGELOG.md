@@ -6,7 +6,9 @@
 - **Provider contract** (`src/contracts/labels.ts`, types only): templates, sets and tokens that other plugins can offer.
 - **Plugin**: `labelsPlugin()` adds `label-templates`, `label-media` and `label-prints`. Writes are refused unless the site grants them with an `access` check that returns exactly `true`. Options `scopeField` with `scopeCollection` and `scopeOf`, and `log`. With a scope field, reads, creates, updates and deletes are limited to the person's own scope (records with no scope are readable by all, and changed only by a platform admin); no scope means no access.
 
+- **Outputs**: `renderSvg` (core) and `renderPdf` (`./pdf` export, pdfkit), one label per page, from the same marks. Barcodes, QR and Data Matrix are drawn as vectors with bwip-js; a value that can't be encoded draws a dashed box and the layout already warns. New dependencies: pdfkit and bwip-js (both MIT).
+
 No version bump (still 0.0.0).
 
-Tested: 28 tests with made-up data. Core math and tokens; a Payload config build checking the collections, default access and strict answers; and an in-memory MongoDB run with two sites proving cross-scope reads, creates, updates, deletes and moves are refused, the shared template is admin-only, the print log is unwritable, and signed-out and scope-less users get nothing.
-Not tested: any database, PDF or SVG output (not built), barcode drawing, the print endpoint, the admin UI, real printers.
+Tested: 34 tests with made-up data. Core math and tokens; PDF page count and size (288 x 432 pt for 4 x 6 in), SVG viewBox, text escaping, rotation, vector barcodes, invalid barcode without a crash; a Payload config build checking the collections, default access and strict answers; and an in-memory MongoDB run with two sites proving cross-scope reads, creates, updates, deletes and moves are refused, the shared template is admin-only, the print log is unwritable, and signed-out and scope-less users get nothing.
+Not tested: PDF in a viewer or printer, SVG in a browser, scanning a printed barcode, sheet pages, images in output, real font metrics, the print endpoint, the admin UI, real printers.
