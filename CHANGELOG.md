@@ -16,6 +16,8 @@
   - Tested: slot math, page size in points (612 x 792), page counts with and without a start slot, endpoint refusals and happy paths on in-memory MongoDB.
   - Not tested: Avery measurements against a printed sheet (taken from published sizes), printing at 100% on a real printer, sets.
 
+- **Media bounds (review).** Stored media is refused when a page or roll is over 1,000 mm on a side or a sheet has more than 1,000 labels per page. Tested: 1 new test. Not tested: the dialog with a large legal sheet.
+
 No version bump (still 0.0.0).
 
 Tested: 44 tests with made-up data. Core math and tokens; PDF page count and size (288 x 432 pt for 4 x 6 in), SVG viewBox, text escaping, rotation, vector barcodes, invalid barcode without a crash; the print endpoint on in-memory MongoDB (page count, one log entry with ids only, 2,001-over refusal with count, signed-out, no scope, other site's template, an unreadable record, bad requests); config throws with neither access option, manage-only and print-only behavior, and the template lookup order with a stand-in for Payload; a Payload config build checking the collections, default access and strict answers; and an in-memory MongoDB run with two sites proving cross-scope reads, creates, updates, deletes and moves are refused, the shared template is admin-only, the print log is unwritable, and signed-out and scope-less users get nothing.
