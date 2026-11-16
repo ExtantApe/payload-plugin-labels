@@ -1,6 +1,7 @@
 import type { Access, CollectionConfig, Config, Field, Plugin, Where } from 'payload'
 
 import type { LabelProvider } from './contracts/labels.js'
+import { printEndpoint } from './print.js'
 
 export * from './core/index.js'
 
@@ -45,6 +46,7 @@ async function scopeFor(options: LabelsOptions, req: unknown): Promise<string | 
   }
 }
 
+export { MAX_LABELS } from './print.js'
 export const TEMPLATES_SLUG = 'label-templates'
 export const MEDIA_SLUG = 'label-media'
 export const PRINTS_SLUG = 'label-prints'
@@ -144,9 +146,22 @@ export const labelsPlugin =
       ],
     }
 
+    const endpoint = printEndpoint({
+      slugs: { templates: TEMPLATES_SLUG, prints: PRINTS_SLUG },
+      // Without a print check, any signed-in person may print what they can read. With one, only exactly true passes.
+      mayPrint: async (req) => (options.access?.print ? (await print({ req } as never)) === true : Boolean(req.user)),
+      scope: async (req) => {
+        if (!field) return { all: true }
+        const who = await scopeFor(options, req)
+        return who === null ? null : who === ALL_SCOPES ? { all: true } : { id: who }
+      },
+      scopeField: field,
+      log: options.log?.enabled !== false,
+    })
     const custom = (config.custom ?? {}) as { labels?: { providers?: Record<string, LabelProvider> } }
     return {
       ...config,
+      endpoints: [...(config.endpoints ?? []), endpoint],
       collections: [...(config.collections ?? []), templates, media, ...(options.log?.enabled === false ? [] : [prints])],
       custom: {
         ...custom,

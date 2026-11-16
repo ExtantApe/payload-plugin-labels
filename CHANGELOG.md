@@ -8,7 +8,9 @@
 
 - **Outputs**: `renderSvg` (core) and `renderPdf` (`./pdf` export, pdfkit), one label per page, from the same marks. Barcodes, QR and Data Matrix are drawn as vectors with bwip-js; a value that can't be encoded draws a dashed box and the layout already warns. New dependencies: pdfkit and bwip-js (both MIT).
 
+- **Print endpoint** `POST /api/labels/print` (`template`, `ids`, `copies`): a PDF, one label per page. Refuses with a plain message when signed out, without the print right, without a scope, for another scope's template, for any document the person cannot read, and over 2,000 labels. Writes one print-log entry (ids and counts only) server-side.
+
 No version bump (still 0.0.0).
 
-Tested: 34 tests with made-up data. Core math and tokens; PDF page count and size (288 x 432 pt for 4 x 6 in), SVG viewBox, text escaping, rotation, vector barcodes, invalid barcode without a crash; a Payload config build checking the collections, default access and strict answers; and an in-memory MongoDB run with two sites proving cross-scope reads, creates, updates, deletes and moves are refused, the shared template is admin-only, the print log is unwritable, and signed-out and scope-less users get nothing.
-Not tested: PDF in a viewer or printer, SVG in a browser, scanning a printed barcode, sheet pages, images in output, real font metrics, the print endpoint, the admin UI, real printers.
+Tested: 40 tests with made-up data. Core math and tokens; PDF page count and size (288 x 432 pt for 4 x 6 in), SVG viewBox, text escaping, rotation, vector barcodes, invalid barcode without a crash; the print endpoint on in-memory MongoDB (page count, one log entry with ids only, 2,001-over refusal with count, signed-out, no scope, other site's template, an unreadable record, bad requests); a Payload config build checking the collections, default access and strict answers; and an in-memory MongoDB run with two sites proving cross-scope reads, creates, updates, deletes and moves are refused, the shared template is admin-only, the print log is unwritable, and signed-out and scope-less users get nothing.
+Not tested: the endpoint over real HTTP, 2,000 labels' render time (the 2,000 limit is a guess), PDF in a viewer or printer, SVG in a browser, scanning a printed barcode, sheet pages, images in output, real font metrics,  real printers.
