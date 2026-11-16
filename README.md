@@ -4,6 +4,10 @@ Labels for Payload: design labels with field tokens in the admin, then print one
 
 **Status:** early checkpoint, version 0.0.0, not published. Built and tested (49 tests): the layout engine in `src/core` (field tokens, text fitting, barcode value checks, sheet grid positions, the 4 x 6 inch thermal preset), and the plugin that adds the three collections with write access closed by default and scope filtering on reads and writes, plus SVG and PDF output drawn from the layout marks, with barcodes, QR and Data Matrix as vectors (bwip-js), and the print endpoint `POST /api/labels/print`. The scope rules are tested against an in-memory MongoDB with two made-up sites. The PDF was checked for page count and page size in points, not opened in a printer or viewer; the SVG was checked as text, not in a browser; no barcode has been scanned. The endpoint is tested by calling its handler against an in-memory MongoDB, not over HTTP. Images (PNG and JPEG from allowed local upload collections) are drawn in SVG and PDF, and `pruneLabelPrints` enforces the log's retention when the site schedules it; both are tested on in-memory MongoDB, not with cloud storage or a scheduled job. **Not built yet:** sheet (Avery) pages, sets, the print dialog and button, the admin inspector and live preview. The design is in [docs/design.md](docs/design.md).
 
+## Print log retention
+
+The print log keeps entries for 180 days by default (`log.keepDays`; 0 keeps them forever). Nothing deletes old entries on its own. Retention only runs when your site schedules `pruneLabelPrints(payload)`, for example as a Payload job or a cron call. If you don't schedule it, the log grows without limit.
+
 ## What it will do (the plan)
 
 - A label builder in the admin: pick the label size and the roll or sheet, then place text, barcodes, QR codes, images and lines. Field tokens such as `{{order.customer.name}}` fill them from the document, so labels always carry live data.
