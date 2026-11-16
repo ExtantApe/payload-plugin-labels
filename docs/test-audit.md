@@ -2,6 +2,12 @@
 
 Newest first.
 
+## 2026-11-16: sheet media and start slot
+
+- Promises: labels land in the media's grid from the start slot and flow onto new Letter pages; a bad media, a start slot out of range or on thermal, another site's media, a broken stored sheet and an oversized template are refused plainly and log nothing; the template's own media is the default.
+- Covered: `test/sheets.test.ts` (slot placement, start slot, second page, 612 x 792 pt pages, thermal unchanged, `parseMedia` refusals) and four tests in `test/print.test.ts`.
+- Gaps skipped (and why): measurements against a printed sheet (hands-on); sets (not built); reading label positions back out of the PDF (page count and size are checked; positions are checked in the pure slot math).
+
 ## 2026-11-16: template editor
 
 - Promises: the preview follows the sample and edits; inspector edits write back to the elements; arrow keys move the selection; reordering follows the layer and announces the result; warnings name the right layer; every control has a label; a bad sample does not break the editor.

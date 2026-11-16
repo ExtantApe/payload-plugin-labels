@@ -53,6 +53,13 @@ describe('fitting', () => {
 })
 
 describe('layout', () => {
+  it('treats non-string content stored before validation as empty', () => {
+    const old = { key: 'old', size: { width: 100, height: 50 }, elements: [{ type: 'text', x: 1, y: 1, width: 50, height: 10, fontSize: 12, content: 42 }] } as unknown as LabelTemplate
+    const r = layout(old, {})
+    expect(r.marks).toHaveLength(1)
+    expect(r.warnings.filter((w) => w.kind === 'invalid-token')).toHaveLength(0)
+  })
+
   const tpl: LabelTemplate = {
     key: 'order-box',
     size: { width: THERMAL_4X6.width, height: THERMAL_4X6.height },

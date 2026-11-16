@@ -12,11 +12,19 @@
 
 - **Fail closed.** The plugin throws at config time unless `access.manage` or `access.print` is set. `access.print` decides printing; without it only `access.manage` may print. Templates and media are read by whoever may manage or print (a printer must read the template); the log is read by `manage` only. There is no signed-in fallback. The template lookup tries the key, then the id exactly as given, so numeric ids work on Postgres and SQLite.
 
+- **Sheet media.** `renderPdf(labels, media, start)` places labels on Letter pages in the media's grid from a start slot and flows onto new pages. Presets `avery-5160` (3 x 10) and `avery-5163` (2 x 5). `parseMedia` checks stored media records. The print endpoint takes `media` (a preset key, or a stored media by key or id; default is the template's own media, else 4 x 6 in thermal) and `start` (1-based, sheets only). It refuses an unknown or broken media, another site's media, a start slot out of range, and a template larger than the sheet's labels, each with a plain message and nothing logged. Media records get an optional `key`. Sets are not built.
+  - Tested: slot math, page size in points (612 x 792), page counts with and without a start slot, endpoint refusals and happy paths on in-memory MongoDB.
+  - Not tested: Avery measurements against a printed sheet (taken from published sizes), printing at 100% on a real printer, sets.
+
+- **Media bounds (review).** Stored media is refused when a page or roll is over 1,000 mm on a side or a sheet has more than 1,000 labels per page. Tested: 1 new test. Not tested: the dialog with a large legal sheet.
 - **Template editor** (`/client`): layers list with keyboard selection and announced reorder, hide and delete; an inspector for position, size, rotation, text, font size, fit rule and barcode settings; a live SVG preview from the same layout as printing, with a sample record and a warnings list. Installed on the `elements` field. New peer dependencies: `react` and `@payloadcms/ui`.
 
 - **Security fix (review).** The `elements` field is validated on save (`validateElements`): known kinds, finite numbers in range, strings where strings belong, fixed lists for enums, at most 200 elements. The SVG writer sends every number through one sanitizer, so a stored value can no longer carry markup into the live preview.
   - Tested: a malicious thickness and rotation, an infinite position, a non-text content, an unknown kind and a non-list are each refused on save; the SVG of an unvalidated hostile element holds no markup; 4 new tests.
   - Not tested: the editor in a real browser against a hostile record.
+
+- **Old content (review).** A text, barcode or image value saved before validation existed that is not a string is treated as empty by `layout` and the layers list instead of throwing.
+  - Tested: 2 new tests (layout and editor). Not tested: such a record loaded in the real admin.
 
 No version bump (still 0.0.0).
 
