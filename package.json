@@ -34,6 +34,10 @@
     "./core": {
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js"
+    },
+    "./pdf": {
+      "types": "./dist/pdf.d.ts",
+      "import": "./dist/pdf.js"
     }
   },
   "main": "./dist/index.js",
@@ -59,10 +63,15 @@
   "devDependencies": {
     "@payloadcms/db-mongodb": "^3.92.1",
     "@types/node": "^24.19.2",
+    "@types/pdfkit": "^0.17.7",
     "graphql": "^16.15.0",
     "mongodb-memory-server": "^11.3.0",
     "payload": "^3.92.1",
     "typescript": "^5.9.3",
     "vitest": "^5.1.0"
+  },
+  "dependencies": {
+    "bwip-js": "^4.11.4",
+    "pdfkit": "^0.20.2"
   }
 }

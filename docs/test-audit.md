@@ -2,6 +2,12 @@
 
 Newest first.
 
+## 2026-11-16: SVG and PDF output
+
+- Promises: a 4 x 6 in label makes a one-page PDF 288 x 432 pt; the SVG viewBox is the label in mm; text is escaped; barcodes render as vectors; an invalid value warns and never crashes either output; both outputs draw one mark list.
+- Covered: `test/render.test.ts` (6 tests).
+- Gaps skipped (and why): reading the PDF back with a parser or scanning a barcode (needs extra tools; hands-on check with a printer instead); a byte-level preview-equals-PDF comparison, because the PDF carries a creation date and both outputs are fed the same marks by construction.
+
 ## 2026-11-16: scope filtering
 
 - Promises: a person sees and changes only their own site's templates, media and print log; shared templates are readable by all and changed only by a platform admin; no scope or no sign-in means no access; the print log is never written through the API.
