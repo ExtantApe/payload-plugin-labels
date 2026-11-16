@@ -2,6 +2,12 @@
 
 Newest first.
 
+## 2026-11-16: retention and images
+
+- Promises: entries older than `keepDays` are deleted, recent ones stay, 0 keeps all, the default is 180; images draw in SVG and PDF; a web address is never fetched; another collection, an unreadable upload and a file that is not a PNG or JPEG give a placeholder and a warning.
+- Covered: `test/images.test.ts` (5 tests; real in-memory MongoDB and a temporary upload folder).
+- Gaps skipped (and why): cloud storage adapters, a scheduled job (the site's), size-limit path (a 5 MB file test is slow for little gain; the check is one comparison), how the image looks printed (hands-on).
+
 ## 2026-11-16: fail closed and template lookup
 
 - Promises: with neither `access.manage` nor `access.print` the config throws and names them; manage-only means a plain signed-in member can neither print nor read templates; print-only lets printers print and read templates but not change them or read the log; a template is found by key, then by id as given.

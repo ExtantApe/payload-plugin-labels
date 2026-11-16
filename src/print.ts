@@ -1,6 +1,7 @@
 import type { Endpoint, PayloadRequest } from 'payload'
 
-import { layout, THERMAL_4X6, type LabelElement, type LabelTemplate } from './core/index.js'
+import { uploadLoader } from './images.js'
+import { layout, resolveImages, THERMAL_4X6, type LabelElement, type LabelTemplate } from './core/index.js'
 
 /** The most labels one request may print (documents times copies). A guess for what renders in a few seconds. */
 export const MAX_LABELS = 2000
@@ -12,6 +13,7 @@ export type PrintDeps = {
   /** The person's scope: null for none, `{ all: true }` for a platform admin, else `{ id }`. Without a scope field: `{ all: true }`. */
   scope: (req: PayloadRequest) => Promise<{ all: true } | { id: string | number } | null>
   scopeField?: string
+  uploads: string[]
   log: boolean
 }
 
@@ -83,8 +85,10 @@ export const printEndpoint = (deps: PrintDeps): Endpoint => ({
         results.push(layout(template, byId.get(id), THERMAL_4X6, { label: { number: n, of: total }, printedAt, printedBy: { name: typeof u.name === 'string' ? u.name : '' } }))
       }
     }
+    const load = uploadLoader({ payload, user, uploads: deps.uploads })
+    const withImages = await Promise.all(results.map((r) => (r.marks.some((m) => m.type === 'image') ? resolveImages(r, load) : r)))
     const { renderPdf } = await import('./pdf.js')
-    const pdf = await renderPdf(results)
+    const pdf = await renderPdf(withImages)
 
     if (deps.log) {
       const tplScope = deps.scopeField ? (tpl as unknown as Record<string, unknown>)[deps.scopeField] : undefined

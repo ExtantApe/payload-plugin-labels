@@ -49,7 +49,7 @@ export function layout(template: LabelTemplate, data: unknown, media?: LabelMedi
         break
       }
       case 'image':
-        marks.push({ type: 'image', ...base, source: tokens(el.source).text })
+        marks.push({ type: 'image', ...base, source: tokens(el.source).text, element: i })
         break
       case 'line':
       case 'box':

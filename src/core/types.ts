@@ -68,14 +68,16 @@ export type LabelMedia = ThermalMedia | SheetMedia
 export type Warning = {
   /** Index of the element in the template. */
   element: number
-  kind: 'missing' | 'invalid-token' | 'overflow' | 'outside-safe-area' | 'invalid-barcode' | 'unreadable'
+  kind: 'missing' | 'invalid-token' | 'overflow' | 'outside-safe-area' | 'invalid-barcode' | 'unreadable' | 'image'
   message: string
 }
+
+export type LoadedImage = { mime: 'image/png' | 'image/jpeg'; data: Uint8Array }
 
 export type Mark =
   | { type: 'text'; x: number; y: number; width: number; height: number; rotation: Rotation; lines: string[]; fontSize: number; font?: string; bold: boolean; italic: boolean; align: 'left' | 'center' | 'right'; missing: boolean }
   | { type: 'barcode'; x: number; y: number; width: number; height: number; rotation: Rotation; symbology: Symbology | 'qr'; value: string; humanReadable: boolean }
-  | { type: 'image'; x: number; y: number; width: number; height: number; rotation: Rotation; source: string }
+  | { type: 'image'; x: number; y: number; width: number; height: number; rotation: Rotation; source: string; element: number; /** Set once the picture is loaded; without it outputs draw a placeholder box. */ image?: LoadedImage }
   | { type: 'line' | 'box'; x: number; y: number; width: number; height: number; rotation: Rotation; thickness: number }
 
 export type LayoutResult = { width: number; height: number; marks: Mark[]; warnings: Warning[] }

@@ -31,6 +31,10 @@ function drawMark(doc: PDFKit.PDFDocument, m: Mark): void {
       break
     }
     case 'image':
+      if (m.image) {
+        doc.image(Buffer.from(m.image.data), pt(m.x), pt(m.y), { fit: [pt(m.width), pt(m.height)], align: 'center', valign: 'center' })
+        break
+      }
       doc.lineWidth(0.6).strokeColor('#999').rect(pt(m.x), pt(m.y), pt(m.width), pt(m.height)).stroke()
       break
     case 'line':
