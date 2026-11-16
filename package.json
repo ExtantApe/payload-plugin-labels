@@ -1,0 +1,67 @@
+{
+  "name": "@extantape/payload-plugin-labels",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Labels for Payload: design labels with field tokens, then print one, a few or every label for a document on thermal rolls or Avery-style sheets.",
+  "keywords": [
+    "payload",
+    "payload-plugin",
+    "payloadcms",
+    "admin-ui",
+    "ecommerce",
+    "labels",
+    "printing",
+    "barcode",
+    "qr-code",
+    "thermal-printer",
+    "pdf"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/ExtantApe/payload-plugin-labels#readme",
+  "bugs": {
+    "url": "https://github.com/ExtantApe/payload-plugin-labels/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ExtantApe/payload-plugin-labels.git"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run typecheck && npm test"
+  },
+  "peerDependencies": {
+    "payload": "^3.80.0"
+  },
+  "devDependencies": {
+    "@payloadcms/db-mongodb": "^3.92.1",
+    "@types/node": "^24.19.2",
+    "graphql": "^16.15.0",
+    "payload": "^3.92.1",
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0"
+  }
+}

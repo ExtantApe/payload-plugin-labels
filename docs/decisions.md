@@ -15,3 +15,14 @@ Dated decisions for this repo, newest last.
 - 2026-11-10: build it right. Labels imports no other plugin; other plugins reach it through optional adapters. No plugin-family tags in `package.json` keywords yet.
 - 2026-11-11: categories are `admin-ui` and `ecommerce`. GitHub topics: payload, payload-plugin, payloadcms, admin-ui, ecommerce, labels, printing, barcode, qr-code, thermal-printer, pdf. When the package is created, its `keywords` are exactly these, in this order.
 - 2026-11-14: moved to the ExtantApe GitHub organization. The package will be `@extantape/payload-plugin-labels`.
+- 2026-11-16: first build checkpoint (core and plugin shell). Choices made where the design was open:
+  - Text width is estimated from character count (0.52 em, 0.58 bold) until PDF output brings real font metrics. Fit results are approximate until then.
+  - `money` formats a number as it is, with two decimals and thousands separators (en-US); it does not divide minor units or add a currency symbol.
+  - Dates format in UTC, with the tokens YYYY, MMM, MM, DD and D.
+  - Token paths are capped at 4 segments (a field plus up to 3 relationship levels). Context roots (`label`, `printedAt`, `printedBy`, `site`) win over record fields of the same name.
+  - A missing value prints empty and is reported as a warning; `default` supplies a value and silences the warning.
+  - The media calibration offset is applied inside `layout`, so every output draws the same marks.
+  - The provider contract is typed without importing Payload (`payload` and `req` are `unknown`), so a provider can copy it.
+  - `scopeField` needs a `scopeCollection` option naming the collection it points at; the plugin throws without it. Site filtering of reads is not built yet.
+  - Read access defaults to any signed-in user when no `access` option is given; with `print` or `manage` given, only those pass. Writes default to no. The print log can never be written through the API.
+  - Template `width` and `height` are stored in mm as separate number fields, and `elements` and media `definition` are JSON, to be validated when the inspector is built.
