@@ -88,6 +88,16 @@ export function PrintLabelsDialog({ collection, ids, apiRoute = '/api' }: Props)
   useEffect(() => {
     if (open) box.current?.querySelector<HTMLElement>('select, input, button')?.focus()
   }, [open])
+  // Focus cannot leave the dialog while it is open: a click on the backdrop or a control that stops working puts it back.
+  useEffect(() => {
+    if (!open) return
+    const back = (e: FocusEvent) => {
+      const b = box.current
+      if (b && e.target instanceof Node && !b.contains(e.target)) b.querySelector<HTMLElement>('select, input, button:not([aria-disabled="true"])')?.focus()
+    }
+    document.addEventListener('focusin', back)
+    return () => document.removeEventListener('focusin', back)
+  }, [open])
   useEffect(
     () => () => {
       if (result) URL.revokeObjectURL(result.url)
@@ -134,7 +144,7 @@ export function PrintLabelsDialog({ collection, ids, apiRoute = '/api' }: Props)
       e.stopPropagation()
       close()
     } else if (e.key === 'Tab' && box.current) {
-      const f = [...box.current.querySelectorAll<HTMLElement>('select, input, button:not([disabled]), a[href], [tabindex="0"]')].filter((el) => !el.hasAttribute('disabled'))
+      const f = [...box.current.querySelectorAll<HTMLElement>('select, input, button, a[href], [tabindex="0"]')].filter((el) => !el.hasAttribute('disabled') && el.getAttribute('tabindex') !== '-1')
       const first = f[0]
       const last = f.at(-1)
       if (!first || !last) return
@@ -149,6 +159,7 @@ export function PrintLabelsDialog({ collection, ids, apiRoute = '/api' }: Props)
   }
 
   const print = async () => {
+    if (busy) return
     setError('')
     setResult(null)
     const n = Number(copies)
@@ -180,7 +191,7 @@ export function PrintLabelsDialog({ collection, ids, apiRoute = '/api' }: Props)
         Print labels
       </button>
       {open && (
-        <div className="labels-dialog-backdrop">
+        <div className="labels-dialog-backdrop" onMouseDown={(e) => e.target === e.currentTarget && e.preventDefault()}>
           <div className="labels-dialog" role="dialog" aria-modal="true" aria-labelledby={`${uid}-h`} ref={box} onKeyDown={onDialogKey}>
             <h2 id={`${uid}-h`} style={{ margin: 0 }}>
               Print labels
@@ -241,11 +252,11 @@ export function PrintLabelsDialog({ collection, ids, apiRoute = '/api' }: Props)
                     </button>
                   ))}
                 </div>
-                <p role="status" style={{ margin: '.4rem 0 0' }}>
-                  Starting at {where}.
-                </p>
               </fieldset>
             )}
+            <p role="status" style={{ margin: 0 }}>
+              {sheet ? `Starting at ${where}.` : ''}
+            </p>
             <div>
               <label htmlFor={`${uid}-c`}>Copies of each label</label>
               <input id={`${uid}-c`} type="number" min={1} step={1} value={copies} onChange={(e) => setCopies(e.target.value)} />
@@ -255,22 +266,24 @@ export function PrintLabelsDialog({ collection, ids, apiRoute = '/api' }: Props)
                 {error}
               </p>
             )}
-            {result && (
-              <p role="status" style={{ margin: 0 }}>
-                {result.text}{' '}
-                <a className="labels-link" href={result.url} target="_blank" rel="noreferrer">
-                  Open the PDF
-                </a>{' '}
-                <a className="labels-link" href={result.url} download="labels.pdf">
-                  Download the PDF
-                </a>
-              </p>
-            )}
+            <p role="status" style={{ margin: 0 }}>
+              {result && (
+                <>
+                  {result.text}{' '}
+                  <a className="labels-link" href={result.url} target="_blank" rel="noreferrer">
+                    Open the PDF
+                  </a>{' '}
+                  <a className="labels-link" href={result.url} download="labels.pdf">
+                    Download the PDF
+                  </a>
+                </>
+              )}
+            </p>
             <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
               <button type="button" onClick={close}>
                 Close
               </button>
-              <button type="button" onClick={print} disabled={busy} aria-busy={busy}>
+              <button type="button" onClick={print} aria-disabled={busy} aria-busy={busy}>
                 {busy ? 'Printing...' : 'Print'}
               </button>
             </div>
