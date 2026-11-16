@@ -2,6 +2,12 @@
 
 Newest first.
 
+## 2026-11-16: sheet media and start slot
+
+- Promises: labels land in the media's grid from the start slot and flow onto new Letter pages; a bad media, a start slot out of range or on thermal, another site's media, a broken stored sheet and an oversized template are refused plainly and log nothing; the template's own media is the default.
+- Covered: `test/sheets.test.ts` (slot placement, start slot, second page, 612 x 792 pt pages, thermal unchanged, `parseMedia` refusals) and four tests in `test/print.test.ts`.
+- Gaps skipped (and why): measurements against a printed sheet (hands-on); sets (not built); reading label positions back out of the PDF (page count and size are checked; positions are checked in the pure slot math).
+
 ## 2026-11-16: fail closed and template lookup
 
 - Promises: with neither `access.manage` nor `access.print` the config throws and names them; manage-only means a plain signed-in member can neither print nor read templates; print-only lets printers print and read templates but not change them or read the log; a template is found by key, then by id as given.

@@ -128,6 +128,7 @@ export const labelsPlugin =
       hooks: keepInScope,
       fields: [
         { name: 'name', type: 'text', required: true },
+        { name: 'key', type: 'text', index: true, admin: { description: 'Optional short name to print with, such as my-sheet.' } },
         { name: 'kind', type: 'select', required: true, options: ['thermal', 'sheet'] },
         { name: 'definition', type: 'json', required: true, admin: { description: 'Sizes in millimeters, as in the media presets.' } },
         ...scope,
@@ -149,7 +150,7 @@ export const labelsPlugin =
     }
 
     const endpoint = printEndpoint({
-      slugs: { templates: TEMPLATES_SLUG, prints: PRINTS_SLUG },
+      slugs: { templates: TEMPLATES_SLUG, prints: PRINTS_SLUG, media: MEDIA_SLUG },
       // access.print decides printing; without it, only access.manage may print. Only exactly true passes.
       mayPrint: async (req) => (options.access?.print ? (await print({ req } as never)) === true : (await manage({ req } as never)) === true),
       scope: async (req) => {
