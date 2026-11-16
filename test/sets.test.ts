@@ -44,7 +44,7 @@ beforeAll(async () => {
             { name: 'batch', type: 'relationship', relationTo: 'batches' },
             { name: 'tenant', type: 'relationship', relationTo: 'tenants' },
           ],
-          access: { read: ({ req }) => (req.user ? { and: [{ tenant: { equals: (req.user as { tenant?: unknown }).tenant } }, { hidden: { not_equals: true } }] } : false) },
+          access: { read: ({ req }) => (req.user ? ({ and: [{ tenant: { equals: (req.user as { tenant?: unknown }).tenant } }, { hidden: { not_equals: true } }] } as never) : false) },
         },
       ],
       plugins: [
