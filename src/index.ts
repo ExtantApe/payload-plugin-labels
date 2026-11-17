@@ -20,9 +20,12 @@ export type LabelsOptions = {
    * `scopeField`. No answer, an error or null means no access at all.
    */
   scopeOf?: (args: { req: { user?: unknown } }) => ScopeAnswer | Promise<ScopeAnswer>
+  /** Upload collections whose PNG and JPEG files image elements may print. Default none; no web address is ever fetched. */
+  uploads?: string[]
   /** Collections that get a "Print labels" button on their list and edit views. Default: none. */
   collections?: string[]
   /** The print log. Ids and counts only. Default on, 180 days. */
+  /** `keepDays` is how long entries are kept (default 180; 0 keeps them forever). Enforced by `pruneLabelPrints(payload)`, which the site schedules. */
   log?: { enabled?: boolean; keepDays?: number }
 }
 
@@ -50,6 +53,8 @@ async function scopeFor(options: LabelsOptions, req: unknown): Promise<string | 
 }
 
 export { MAX_LABELS } from './print.js'
+export { pruneLabelPrints } from './retention.js'
+export { MAX_IMAGE_BYTES } from './images.js'
 /** Where Payload finds the admin components (the package's own client export). */
 const CLIENT = '@extantape/payload-plugin-labels/client'
 export const TEMPLATES_SLUG = 'label-templates'
@@ -164,6 +169,7 @@ export const labelsPlugin =
         return who === null ? null : who === ALL_SCOPES ? { all: true } : { id: who }
       },
       scopeField: field,
+      uploads: options.uploads ?? [],
       log: options.log?.enabled !== false,
     })
     const custom = (config.custom ?? {}) as { labels?: { providers?: Record<string, LabelProvider> } }

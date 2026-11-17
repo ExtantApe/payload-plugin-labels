@@ -28,6 +28,7 @@ function markSvg(m: Mark): string {
       return `<g transform="translate(${n(p.tx)} ${n(p.ty)}) scale(${n(p.sx)} ${n(p.sy)})">${paths}</g>${text}`
     }
     case 'image':
+      if (m.image) return `<image x="${n(m.x)}" y="${n(m.y)}" width="${n(m.width)}" height="${n(m.height)}" preserveAspectRatio="xMidYMid meet" href="data:${m.image.mime};base64,${Buffer.from(m.image.data).toString('base64')}"/>`
       return `<rect x="${n(m.x)}" y="${n(m.y)}" width="${n(m.width)}" height="${n(m.height)}" fill="#eee" stroke="#999" stroke-width="0.2"/>`
     case 'line':
       return `<line x1="${n(m.x)}" y1="${n(m.y)}" x2="${n(m.x + m.width)}" y2="${n(m.y + m.height)}" stroke="#000" stroke-width="${n(m.thickness)}"/>`
