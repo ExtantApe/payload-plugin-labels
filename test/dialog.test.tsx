@@ -136,3 +136,49 @@ describe('print dialog', () => {
     expect(regions.some((r) => /ready/.test(r.textContent ?? ''))).toBe(true)
   })
 })
+
+describe('select all across pages', () => {
+  const open = async (props: Record<string, unknown>) => {
+    const view = render(<PrintLabelsDialog collection="orders" ids={['a1', 'a2']} {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Print labels' }))
+    await screen.findByRole('dialog', { name: 'Print labels' })
+    await waitFor(() => expect(screen.getByLabelText('Template')).toHaveProperty('value', 'box'))
+    return view
+  }
+  it('offers "Select all N matching" only when asked, and says so for screen readers when used', async () => {
+    let selected = false
+    const matching = () => ({ total: 213, offer: !selected, selected, select: () => { selected = true }, where: { code: { like: 'rush' } }, sort: '-code' })
+    const view = await open({ matching: matching() })
+    const offer = screen.getByRole('button', { name: 'Select all 213 matching' })
+    expect(screen.getByRole('dialog').textContent).toContain('2 documents selected.')
+    offer.focus()
+    fireEvent.click(offer)
+    view.rerender(<PrintLabelsDialog collection="orders" ids={['a1', 'a2']} matching={matching()} />)
+    expect(screen.queryByRole('button', { name: /Select all/ })).toBeNull()
+    expect(screen.getByRole('dialog').textContent).toContain('All 213 matching documents are selected, on every page.')
+    expect(document.querySelector('[aria-live="polite"]')?.textContent).toBe('All 213 matching documents are now selected, on every page.')
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Template')))
+  })
+  it('sends the filter and no ids once everything is selected, and reports the full count', async () => {
+    await open({ matching: { total: 213, offer: false, selected: true, select: () => {}, where: { code: { like: 'rush' } }, sort: '-code' } })
+    fireEvent.change(screen.getByLabelText('Copies of each label'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Print' }))
+    await screen.findByText(/Your labels are ready \(426 labels\)/)
+    expect(body()).toEqual({ template: 'box', copies: 2, match: { collection: 'orders', where: { code: { like: 'rush' } }, sort: '-code' } })
+  })
+  it('shows no offer by default and still sends the ids', async () => {
+    await open({})
+    expect(screen.queryByRole('button', { name: /Select all/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Print' }))
+    await screen.findByText(/Your labels are ready/)
+    expect(body()).toMatchObject({ template: 'box', ids: ['a1', 'a2'] })
+    expect(body().match).toBeUndefined()
+  })
+  it('shows the server message when the selection is over the cap', async () => {
+    printReply = () => json({ message: 'That is 2100 labels. One request prints at most 2000.' }, 413)
+    await open({ matching: { total: 700, offer: false, selected: true, select: () => {} } })
+    fireEvent.change(screen.getByLabelText('Copies of each label'), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Print' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('That is 2100 labels. One request prints at most 2000.')
+  })
+})

@@ -12,6 +12,12 @@ type Props = {
   ids: Array<string | number>
   /** Payload's API route. Default `/api`. */
   apiRoute?: string
+  /**
+   * Select all across pages, for a list view. `total` is how many documents match the list's filter. While only some
+   * rows are selected, `offer` is true and the dialog shows "Select all N matching" (which calls `select`). Once
+   * `selected` is true the print sends the filter (`where`, `sort`) and the server finds the documents, so `ids` is ignored.
+   */
+  matching?: { total: number; offer: boolean; selected: boolean; select: () => void; where?: unknown; sort?: string }
 }
 
 const CSS = `
@@ -39,7 +45,7 @@ const errorText = async (r: Response): Promise<string> => {
 }
 
 /** The "Print labels" button and its dialog. Needs no Payload imports, so it can be tested and reused on its own. */
-export function PrintLabelsDialog({ collection, ids, apiRoute = '/api' }: Props) {
+export function PrintLabelsDialog({ collection, ids, apiRoute = '/api', matching }: Props) {
   const uid = useId()
   const [open, setOpen] = useState(false)
   const [templates, setTemplates] = useState<TemplateRow[]>([])
@@ -55,6 +61,10 @@ export function PrintLabelsDialog({ collection, ids, apiRoute = '/api' }: Props)
   const opener = useRef<HTMLButtonElement>(null)
   const box = useRef<HTMLDivElement>(null)
   const slots = useRef<Array<HTMLButtonElement | null>>([])
+  const everything = Boolean(matching?.selected)
+  const count = everything ? matching!.total : ids.length
+  const offerRef = useRef<HTMLButtonElement>(null)
+  const [announce, setAnnounce] = useState('')
 
   const close = useCallback(() => {
     setOpen(false)
@@ -163,7 +173,7 @@ export function PrintLabelsDialog({ collection, ids, apiRoute = '/api' }: Props)
     setError('')
     setResult(null)
     const n = Number(copies)
-    if (!ids.length) return setError('Select at least one document first.')
+    if (!count) return setError('Select at least one document first.')
     if (!template) return setError('Pick a template.')
     if (!Number.isInteger(n) || n < 1) return setError('Copies must be a whole number of 1 or more.')
     setBusy(true)
@@ -172,11 +182,11 @@ export function PrintLabelsDialog({ collection, ids, apiRoute = '/api' }: Props)
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ template, ids, copies: n, ...(mediaChoice ? { media: mediaChoice } : {}), ...(sheet ? { start: slot } : {}) }),
+        body: JSON.stringify({ template, ...(everything ? { match: { collection, ...(matching!.where ? { where: matching!.where } : {}), ...(matching!.sort ? { sort: matching!.sort } : {}) } } : { ids }), copies: n, ...(mediaChoice ? { media: mediaChoice } : {}), ...(sheet ? { start: slot } : {}) }),
       })
       if (!r.ok) return setError(await errorText(r))
       const url = URL.createObjectURL(await r.blob())
-      setResult({ url, text: `Your labels are ready (${ids.length * n} ${ids.length * n === 1 ? 'label' : 'labels'}).` })
+      setResult({ url, text: `Your labels are ready (${count * n} ${count * n === 1 ? 'label' : 'labels'}).` })
     } catch {
       setError('The server could not be reached. Check your connection and try again.')
     } finally {
@@ -197,7 +207,25 @@ export function PrintLabelsDialog({ collection, ids, apiRoute = '/api' }: Props)
               Print labels
             </h2>
             <p style={{ margin: 0 }}>
-              {ids.length ? `${ids.length} ${ids.length === 1 ? 'document' : 'documents'} selected.` : 'No documents are selected. Select at least one first.'} Print at 100% (Actual size), because browsers shrink pages by default.
+              {count ? (everything ? `All ${count} matching ${count === 1 ? 'document is' : 'documents are'} selected, on every page.` : `${count} ${count === 1 ? 'document' : 'documents'} selected.`) : 'No documents are selected. Select at least one first.'} Print at 100% (Actual size), because browsers shrink pages by default.
+            </p>
+            {matching?.offer && !everything && (
+              <div>
+                <button
+                  type="button"
+                  ref={offerRef}
+                  onClick={() => {
+                    matching.select()
+                    setAnnounce(`All ${matching.total} matching documents are now selected, on every page.`)
+                    queueMicrotask(() => box.current?.querySelector<HTMLElement>('select, input')?.focus())
+                  }}
+                >
+                  Select all {matching.total} matching
+                </button>
+              </div>
+            )}
+            <p role="status" aria-live="polite" style={{ margin: 0 }}>
+              {announce}
             </p>
             {loadError && (
               <p className="labels-error" role="alert">

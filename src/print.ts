@@ -86,7 +86,7 @@ export const printEndpoint = (deps: PrintDeps): Endpoint => ({
     const scope = await deps.scope(req)
     if (!scope) return refuse(403, 'Your account is not set up for any site, so it cannot print labels.')
 
-    let body: { template?: unknown; set?: unknown; id?: unknown; ids?: unknown; copies?: unknown; media?: unknown; start?: unknown }
+    let body: { template?: unknown; set?: unknown; id?: unknown; ids?: unknown; match?: unknown; copies?: unknown; media?: unknown; start?: unknown }
     try {
       body = (await req.json?.()) as typeof body
     } catch {
@@ -94,6 +94,7 @@ export const printEndpoint = (deps: PrintDeps): Endpoint => ({
     }
     const isSet = body?.set !== undefined
     const copies = body?.copies === undefined ? 1 : body.copies
+    if (isSet && (body.match !== undefined)) return refuse(400, 'A set prints from one starting record. match works with a template only.')
     if (isSet === (body?.template !== undefined)) return refuse(400, 'Say which template or which set to print.')
     if (typeof copies !== 'number' || !Number.isInteger(copies) || copies < 1) return refuse(400, 'Copies must be a whole number of 1 or more.')
     const tooMany = (n: number) => new Refusal(413, `That is ${n * copies} labels. One request prints at most ${MAX_LABELS}.`)
@@ -103,23 +104,56 @@ export const printEndpoint = (deps: PrintDeps): Endpoint => ({
     let ids: string[] = []
     let setDoc: SetDoc | undefined
     let logTemplate: TemplateDoc | undefined
+    let matchCollection = ''
     try {
       if (!isSet) {
         if (typeof body.template !== 'string' && typeof body.template !== 'number') return refuse(400, 'Say which template to print.')
-        ids = Array.isArray(body.ids) ? [...new Set(body.ids.filter((i): i is string | number => typeof i === 'string' || typeof i === 'number').map(String))] : []
-        if (!ids.length) return refuse(400, 'Pick at least one document.')
-        if (ids.length * copies > MAX_LABELS) return refuse(413, `That is ${ids.length * copies} labels. One request prints at most ${MAX_LABELS}.`)
+        const matching = body.match !== undefined
+        if (matching && body.ids !== undefined) return refuse(400, 'Send either ids or match, not both.')
+        let filter: { where?: Record<string, unknown>; sort?: string } = {}
+        if (matching) {
+          const m = body.match as { collection?: unknown; where?: unknown; sort?: unknown } | null
+          if (!m || typeof m !== 'object' || Array.isArray(m) || typeof m.collection !== 'string') return refuse(400, 'match needs the collection to search, such as { "collection": "orders" }.')
+          if (m.where !== undefined && (!m.where || typeof m.where !== 'object' || Array.isArray(m.where))) return refuse(400, 'match.where must be a Payload filter object.')
+          if (m.sort !== undefined && typeof m.sort !== 'string') return refuse(400, 'match.sort must be a field name.')
+          filter = { where: m.where as Record<string, unknown> | undefined, sort: m.sort as string | undefined }
+          matchCollection = m.collection
+        } else {
+          ids = Array.isArray(body.ids) ? [...new Set(body.ids.filter((i): i is string | number => typeof i === 'string' || typeof i === 'number').map(String))] : []
+          if (!ids.length) return refuse(400, 'Pick at least one document.')
+          if (ids.length * copies > MAX_LABELS) return refuse(413, `That is ${ids.length * copies} labels. One request prints at most ${MAX_LABELS}.`)
+        }
         // The template: by key first, then by id exactly as given, both as the person (scope rules apply).
         const tpl = await findTemplate(payload, deps.slugs.templates, String(body.template), user)
         if (!tpl || tpl.active === false) return refuse(403, 'That template does not exist or you may not use it.')
         const bad = checkTemplate(payload, tpl)
         if (bad) return refuse(bad.status, bad.message)
         logTemplate = tpl
-        // The documents: Payload's own access for their collection, as the person. Any one missing refuses the lot.
-        const docs = await payload.find({ collection: tpl.collection as never, where: { id: { in: ids } } as never, limit: ids.length, pagination: false, user, overrideAccess: false, depth: 3 })
-        if (docs.docs.length !== ids.length) return refuse(403, 'One or more of those documents does not exist or you may not read them. Nothing was printed.')
-        const byId = new Map(docs.docs.map((d) => [String((d as { id: unknown }).id), d]))
-        for (const id of ids) for (let c = 0; c < copies; c++) jobs.push({ tpl, doc: byId.get(id) })
+        if (matching) {
+          if (matchCollection !== tpl.collection) return refuse(422, `That template prints from ${tpl.collection}, but the filter is on ${matchCollection}.`)
+          // The same filter the list used, run here as the person: their read access narrows it, never widens it.
+          const query = { collection: tpl.collection as never, ...(filter.where ? { where: filter.where as never } : {}), ...(filter.sort ? { sort: filter.sort } : {}), user, overrideAccess: false }
+          try {
+            const n = (await payload.count({ collection: tpl.collection as never, ...(filter.where ? { where: filter.where as never } : {}), user, overrideAccess: false })).totalDocs
+            if (n === 0) return refuse(422, 'No documents match that filter, so there is nothing to print.')
+            if (n * copies > MAX_LABELS) return refuse(413, `That is ${n * copies} labels. One request prints at most ${MAX_LABELS}.`)
+            const found = await payload.find({ ...query, limit: n, pagination: false, depth: 3 })
+            // The set can change between the count and the read. Check again so the cap holds for what prints.
+            if (found.docs.length * copies > MAX_LABELS) return refuse(413, `That is ${found.docs.length * copies} labels. One request prints at most ${MAX_LABELS}.`)
+            if (!found.docs.length) return refuse(422, 'No documents match that filter, so there is nothing to print.')
+            ids = found.docs.map((d) => String((d as { id: unknown }).id))
+            for (const d of found.docs) for (let c = 0; c < copies; c++) jobs.push({ tpl, doc: d })
+          } catch (e) {
+            if (e instanceof Refusal) throw e
+            return refuse(400, 'That filter could not be used. Reload the list and try again.')
+          }
+        } else {
+          // The documents: Payload's own access for their collection, as the person. Any one missing refuses the lot.
+          const docs = await payload.find({ collection: tpl.collection as never, where: { id: { in: ids } } as never, limit: ids.length, pagination: false, user, overrideAccess: false, depth: 3 })
+          if (docs.docs.length !== ids.length) return refuse(403, 'One or more of those documents does not exist or you may not read them. Nothing was printed.')
+          const byId = new Map(docs.docs.map((d) => [String((d as { id: unknown }).id), d]))
+          for (const id of ids) for (let c = 0; c < copies; c++) jobs.push({ tpl, doc: byId.get(id) })
+        }
       } else {
         const startId = body.id
         if (typeof body.set !== 'string' && typeof body.set !== 'number') return refuse(400, 'Say which set to print.')
