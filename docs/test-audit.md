@@ -7,6 +7,16 @@ Newest first.
 - Promises: a set prints its steps' labels in one PDF with one log entry; steps reach records forward, backward and by chaining; every record is read as the person and one unreadable record refuses the run; the 2,000 cap counts the whole set; another site's set, template or record is refused; only managers change sets.
 - Covered: `test/sets.test.ts` (8 tests): chained run (4 pages, one entry with ids and counts only), forward run, copies and the cap with its number, cross-site set, template and starting record, hidden kit (backward) and cross-site batch (forward) refusing with no log entry, wrong-collection template, signed-out and bad requests, and the set collection's create, update and delete refusals for a non-manager and the other site.
 - Gaps skipped (and why): polymorphic relationships in backward steps (refused as unsupported by design); render time and very large steps (the cap refuses before reading more than the cap); the path-length and from-index refusals are plain input checks.
+## 2026-11-16: retention and images
+
+- Promises: entries older than `keepDays` are deleted, recent ones stay, 0 keeps all, the default is 180; images draw in SVG and PDF; a web address is never fetched; another collection, an unreadable upload and a file that is not a PNG or JPEG give a placeholder and a warning.
+- Covered: `test/images.test.ts` (5 tests; real in-memory MongoDB and a temporary upload folder).
+- Gaps skipped (and why): cloud storage adapters, a scheduled job (the site's), size-limit path (a 5 MB file test is slow for little gain; the check is one comparison), how the image looks printed (hands-on).
+## 2026-11-16: print dialog
+
+- Promises: the dialog is a modal with focus moved in, trapped, closed by Escape or Close and returned to the button; the slot grid works by keyboard and sends `start`; the request body is exactly what the endpoint expects; an endpoint refusal is shown in words and nothing is offered to download; bad copies are caught before any call.
+- Covered: `test/dialog.test.tsx` (7 tests, jsdom, fetch mocked) and one wiring test in `test/sheets.test.ts`.
+- Gaps skipped (and why): the Payload wrappers (need a running admin; hands-on check); screen-reader behavior and color contrast (hands-on); a page preview (not built).
 
 ## 2026-11-16: sheet media and start slot
 

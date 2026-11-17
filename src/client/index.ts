@@ -3,3 +3,5 @@
 export { DEFAULT_SAMPLE, TemplateEditor, type TemplateEditorProps } from './TemplateEditor.js'
 export { TemplateEditorField } from './TemplateEditorField.js'
 export { LABELS_STYLES } from './styles.js'
+export { PrintLabelsDialog } from './PrintLabelsDialog.js'
+export { EditViewPrintButton, ListViewPrintButton } from './admin.js'

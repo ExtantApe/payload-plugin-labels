@@ -20,7 +20,12 @@ export type LabelsOptions = {
    * `scopeField`. No answer, an error or null means no access at all.
    */
   scopeOf?: (args: { req: { user?: unknown } }) => ScopeAnswer | Promise<ScopeAnswer>
+  /** Upload collections whose PNG and JPEG files image elements may print. Default none; no web address is ever fetched. */
+  uploads?: string[]
+  /** Collections that get a "Print labels" button on their list and edit views. Default: none. */
+  collections?: string[]
   /** The print log. Ids and counts only. Default on, 180 days. */
+  /** `keepDays` is how long entries are kept (default 180; 0 keeps them forever). Enforced by `pruneLabelPrints(payload)`, which the site schedules. */
   log?: { enabled?: boolean; keepDays?: number }
 }
 
@@ -48,6 +53,10 @@ async function scopeFor(options: LabelsOptions, req: unknown): Promise<string | 
 }
 
 export { MAX_LABELS } from './print.js'
+export { pruneLabelPrints } from './retention.js'
+export { MAX_IMAGE_BYTES } from './images.js'
+/** Where Payload finds the admin components (the package's own client export). */
+const CLIENT = '@extantape/payload-plugin-labels/client'
 export const TEMPLATES_SLUG = 'label-templates'
 export const MEDIA_SLUG = 'label-media'
 export const SETS_SLUG = 'label-sets'
@@ -189,13 +198,30 @@ export const labelsPlugin =
         return who === null ? null : who === ALL_SCOPES ? { all: true } : { id: who }
       },
       scopeField: field,
+      uploads: options.uploads ?? [],
       log: options.log?.enabled !== false,
     })
     const custom = (config.custom ?? {}) as { labels?: { providers?: Record<string, LabelProvider> } }
     return {
       ...config,
       endpoints: [...(config.endpoints ?? []), endpoint],
-      collections: [...(config.collections ?? []), templates, media, sets, ...(options.log?.enabled === false ? [] : [prints])],
+      collections: [
+        ...(config.collections ?? []).map((c) => {
+          if (!options.collections?.includes(c.slug)) return c
+          const comps = c.admin?.components
+          return {
+            ...c,
+            admin: {
+              ...c.admin,
+              components: {
+                ...comps,
+                beforeListTable: [...(comps?.beforeListTable ?? []), `${CLIENT}#ListViewPrintButton`],
+                edit: { ...comps?.edit, beforeDocumentControls: [...(comps?.edit?.beforeDocumentControls ?? []), `${CLIENT}#EditViewPrintButton`] },
+              },
+            },
+          } as CollectionConfig
+        }),
+        templates, media, sets, ...(options.log?.enabled === false ? [] : [prints])],
       custom: {
         ...custom,
         labels: { ...custom.labels, options: { ...options, log: { enabled: true, keepDays: 180, ...options.log } }, providers: custom.labels?.providers ?? {} },

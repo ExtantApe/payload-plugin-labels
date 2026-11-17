@@ -4,7 +4,9 @@ import { MM_PER_POINT, barcodePlacement, barcodeVector, sheetPositions, type Lab
 
 const pt = (mm: number) => mm / MM_PER_POINT
 
-function drawMark(doc: PDFKit.PDFDocument, m: Mark): void {
+type Opened = object
+
+function drawMark(doc: PDFKit.PDFDocument, m: Mark, images: WeakMap<Uint8Array, Opened>): void {
   doc.save()
   if (m.rotation) doc.rotate(m.rotation, { origin: [pt(m.x + m.width / 2), pt(m.y + m.height / 2)] })
   switch (m.type) {
@@ -31,6 +33,13 @@ function drawMark(doc: PDFKit.PDFDocument, m: Mark): void {
       break
     }
     case 'image':
+      if (m.image) {
+        // One embedded copy per picture: the opened image is reused, so 2,000 labels do not carry 2,000 copies.
+        let img = images.get(m.image.data)
+        if (!img) images.set(m.image.data, (img = (doc as unknown as { openImage(b: Buffer): Opened }).openImage(Buffer.from(m.image.data))))
+        doc.image(img as never, pt(m.x), pt(m.y), { fit: [pt(m.width), pt(m.height)], align: 'center', valign: 'center' })
+        break
+      }
       doc.lineWidth(0.6).strokeColor('#999').rect(pt(m.x), pt(m.y), pt(m.width), pt(m.height)).stroke()
       break
     case 'line':
@@ -55,6 +64,7 @@ export function renderPdf(labels: LayoutResult[], media?: LabelMedia, start = 0)
     doc.on('data', (c: Buffer) => chunks.push(c))
     doc.on('end', () => resolve(new Uint8Array(Buffer.concat(chunks))))
     doc.on('error', reject)
+    const images = new WeakMap<Uint8Array, Opened>()
     if (media?.kind === 'sheet') {
       const spots = sheetPositions(media, labels.length, start)
       let page = -1
@@ -65,14 +75,14 @@ export function renderPdf(labels: LayoutResult[], media?: LabelMedia, start = 0)
           page++
         }
         doc.save().translate(pt(s.x), pt(s.y))
-        for (const m of l.marks) drawMark(doc, m)
+        for (const m of l.marks) drawMark(doc, m, images)
         doc.restore()
       })
       if (page < 0) doc.addPage({ size: [pt(media.page.width), pt(media.page.height)], margin: 0 })
     } else {
       for (const l of labels) {
         doc.addPage({ size: [pt(l.width), pt(l.height)], margin: 0 })
-        for (const m of l.marks) drawMark(doc, m)
+        for (const m of l.marks) drawMark(doc, m, images)
       }
     }
     doc.end()
