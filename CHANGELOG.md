@@ -28,6 +28,9 @@
   - Tested: slot math, page size in points (612 x 792), page counts with and without a start slot, endpoint refusals and happy paths on in-memory MongoDB.
   - Not tested: Avery measurements against a printed sheet (taken from published sizes), printing at 100% on a real printer, sets.
 
+- **Print button and dialog** (`./client` export, React). Option `collections` adds a "Print labels" button to those collections' list view (selected rows) and edit view (this document). The dialog is a modal: focus moves in, Tab stays inside, Escape and Close return focus to the button, every control has a label and a visible focus outline. It offers the person's templates for the collection, media (default the template's own), a start-slot grid for sheets (arrow keys, Home and End; each slot is named by number, row and column, and the choice is announced), and copies. Print calls the endpoint and offers Open and Download links to the PDF; the endpoint's message shows in the dialog on a refusal. New dev dependencies for tests: jsdom, React Testing Library; React and `@payloadcms/ui` are optional peers.
+  - Tested: in jsdom with fetch mocked: open, focus in, Tab trap, Escape, focus return, the request body, the slot grid by keyboard and its `start`, the template's own media, an endpoint refusal, bad copies, and the config wiring.
+  - Not tested: in a real Payload admin (the two thin wrappers in `src/client/admin.tsx` that read the selection and document id are only type-checked), in a browser, with a screen reader, contrast measured, or against a real PDF viewer.
 - **Media bounds (review).** Stored media is refused when a page or roll is over 1,000 mm on a side or a sheet has more than 1,000 labels per page. Tested: 1 new test. Not tested: the dialog with a large legal sheet.
 - **Template editor** (`/client`): layers list with keyboard selection and announced reorder, hide and delete; an inspector for position, size, rotation, text, font size, fit rule and barcode settings; a live SVG preview from the same layout as printing, with a sample record and a warnings list. Installed on the `elements` field. New peer dependencies: `react` and `@payloadcms/ui`.
 
@@ -35,6 +38,7 @@
   - Tested: a malicious thickness and rotation, an infinite position, a non-text content, an unknown kind and a non-list are each refused on save; the SVG of an unvalidated hostile element holds no markup; 4 new tests.
   - Not tested: the editor in a real browser against a hostile record.
 
+- **Dialog fixes (review).** Print uses `aria-disabled` while busy, so focus stays in the dialog; focus pushed outside (a backdrop click) is brought back; the Tab trap skips controls with `tabindex=-1`; status regions are always on the page and filled later, so screen readers announce them. Tested: 2 new tests in jsdom. Not tested: with a real screen reader, and Payload's select-all across pages (the dialog prints the ids it is given).
 - **Old content (review).** A text, barcode or image value saved before validation existed that is not a string is treated as empty by `layout` and the layers list instead of throwing.
   - Tested: 2 new tests (layout and editor). Not tested: such a record loaded in the real admin.
 

@@ -7,6 +7,11 @@ Newest first.
 - Promises: entries older than `keepDays` are deleted, recent ones stay, 0 keeps all, the default is 180; images draw in SVG and PDF; a web address is never fetched; another collection, an unreadable upload and a file that is not a PNG or JPEG give a placeholder and a warning.
 - Covered: `test/images.test.ts` (5 tests; real in-memory MongoDB and a temporary upload folder).
 - Gaps skipped (and why): cloud storage adapters, a scheduled job (the site's), size-limit path (a 5 MB file test is slow for little gain; the check is one comparison), how the image looks printed (hands-on).
+## 2026-11-16: print dialog
+
+- Promises: the dialog is a modal with focus moved in, trapped, closed by Escape or Close and returned to the button; the slot grid works by keyboard and sends `start`; the request body is exactly what the endpoint expects; an endpoint refusal is shown in words and nothing is offered to download; bad copies are caught before any call.
+- Covered: `test/dialog.test.tsx` (7 tests, jsdom, fetch mocked) and one wiring test in `test/sheets.test.ts`.
+- Gaps skipped (and why): the Payload wrappers (need a running admin; hands-on check); screen-reader behavior and color contrast (hands-on); a page preview (not built).
 
 ## 2026-11-16: sheet media and start slot
 
