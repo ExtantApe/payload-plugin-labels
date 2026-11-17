@@ -79,6 +79,8 @@ A set has a `key`, the `collection` its starting record comes from, and a list o
 
 A step starts from the starting record unless `from` names an earlier step (1 is the first). Each step's template must print from the collection that step reaches.
 
+A media `key` must be unique within its site (or across the whole collection when there is no `scopeField`). Saving a second media with the same key in the same site is refused with a plain message; the same key in another site is fine, and media with no site count as their own group. The check is a read before the write, so two saves at the same instant could both pass.
+
 Print a set with `POST /api/labels/print` and `{ "set": "<key or id>", "id": "<starting record id>", "copies": 1 }`. `media` and `start` work as they do for a template. Labels come out in step order. Every record is read as the person, and if any record the set reaches is missing or hidden from them, nothing prints. That includes a backward step where some matching records exist but the person may not read them. The 2,000-label cap counts every label in the set, copies included. The print log records the set with the starting record.
 
 Only put a step in a set for things that really get one of your labels. Sample tubes, for example, carry the manufacturer's label, so a kit's set prints the shipping box, bag and box labels and never one for a tube.

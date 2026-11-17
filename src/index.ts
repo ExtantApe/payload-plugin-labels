@@ -107,6 +107,20 @@ export const labelsPlugin =
           ],
         }
       : undefined
+    // A media key is unique within its scope. Runs for every write, including local API calls, and reads with
+    // overrideAccess so that a duplicate in a scope the person cannot read is still found.
+    const uniqueMediaKey: NonNullable<NonNullable<CollectionConfig['hooks']>['beforeChange']>[number] = async ({ data, originalDoc, operation, req }) => {
+      const merged = { ...(originalDoc as Record<string, unknown> | undefined), ...(data as Record<string, unknown>) }
+      const key = merged.key
+      if (typeof key !== 'string' || key === '') return data
+      const raw = field ? merged[field] : undefined
+      const scopeId = raw && typeof raw === 'object' ? (raw as { id?: unknown }).id : raw
+      const where: Where = { and: [{ key: { equals: key } }, ...(field ? [scopeId === undefined || scopeId === null || scopeId === '' ? { [field]: { exists: false } } : { [field]: { equals: scopeId } }] : [])] }
+      if (operation === 'update' && originalDoc && (originalDoc as { id?: unknown }).id !== undefined) (where.and as Where[]).push({ id: { not_equals: (originalDoc as { id: unknown }).id } })
+      const clash = await req.payload.find({ collection: MEDIA_SLUG as never, where: where as never, limit: 1, depth: 0, pagination: false, overrideAccess: true, req })
+      if (clash.docs.length) throw new Error(`labels: the media key "${key}" is already used${field ? ' in this scope' : ''}. Pick a different key.`)
+      return data
+    }
     const scope: Field[] = options.scopeField
       ? [{ name: options.scopeField, type: 'relationship', relationTo: options.scopeCollection!, admin: { description: 'Leave empty to share with every site.' } }]
       : []
@@ -136,10 +150,10 @@ export const labelsPlugin =
       slug: MEDIA_SLUG,
       admin: { useAsTitle: 'name', group: 'Labels' },
       access: { read: scoped(read, true), ...writes },
-      hooks: keepInScope,
+      hooks: { beforeChange: [...(keepInScope?.beforeChange ?? []), uniqueMediaKey] },
       fields: [
         { name: 'name', type: 'text', required: true },
-        { name: 'key', type: 'text', index: true, admin: { description: 'Optional short name to print with, such as my-sheet.' } },
+        { name: 'key', type: 'text', index: true, admin: { description: 'Optional short name to print with, such as my-sheet. Must be unique within its site.' } },
         { name: 'kind', type: 'select', required: true, options: ['thermal', 'sheet'] },
         { name: 'definition', type: 'json', required: true, admin: { description: 'Sizes in millimeters, as in the media presets.' } },
         ...scope,
