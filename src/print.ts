@@ -184,7 +184,7 @@ export const printEndpoint = (deps: PrintDeps): Endpoint => ({
       try {
         await payload.create({
           collection: deps.slugs.prints as never,
-          data: { ...(setDoc ? { set: setDoc.id, collection: setDoc.collection } : { template: logTemplate!.id, collection: logTemplate!.collection }), documentIds: ids, labelCount: total, printedBy: String((user as { id: unknown }).id), ...(deps.scopeField && scopeValue ? { [deps.scopeField]: scopeValue } : {}) } as never,
+          data: { ...(setDoc ? { set: setDoc.id, collection: setDoc.collection } : { template: logTemplate!.id, collection: logTemplate!.collection }), documentIds: ids, labelCount: total, media: media.key, ...(media.kind === 'sheet' ? { startSlot: start + 1 } : {}), printedBy: String((user as { id: unknown }).id), ...(deps.scopeField && scopeValue ? { [deps.scopeField]: scopeValue } : {}) } as never,
           overrideAccess: true,
         })
       } catch {
