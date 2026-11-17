@@ -63,6 +63,22 @@ Printing: `POST /api/labels/print` with `{ "template": "<key or id>", "ids": [..
 
 Output: `renderSvg(layoutResult)` (in `/core`) gives an SVG in millimeters for previews. `renderPdf([layoutResult, ...])` from `@extantape/payload-plugin-labels/pdf` gives a PDF with one label per page, each page the label's size. Both draw the same marks. Images draw as a placeholder box for now.
 
+## Sets
+
+A set prints several kinds of label from one starting record, such as the shipping box label for an order and the bag and box labels for each of its kits. Sets live in the `label-sets` collection, with the same site scope and access rules as templates: people who may manage change them, and people who may print can read them.
+
+A set has a `key`, the `collection` its starting record comes from, and a list of steps. Each step names a template and says how its records are reached:
+
+- **The record itself** (`self`): the starting record, or the records of an earlier step.
+- **Forward** (`forward`): follow a relationship field from those records. `field` is a path of up to 4 relationship fields joined with dots, such as `kit.bag`.
+- **Backward** (`backward`): find records in another `collection` whose relationship `field` points at those records, such as the items whose `order` field names this order.
+
+A step starts from the starting record unless `from` names an earlier step (1 is the first). Each step's template must print from the collection that step reaches.
+
+Print a set with `POST /api/labels/print` and `{ "set": "<key or id>", "id": "<starting record id>", "copies": 1 }`. `media` and `start` work as they do for a template. Labels come out in step order. Every record is read as the person, and if any record the set reaches is missing or hidden from them, nothing prints. That includes a backward step where some matching records exist but the person may not read them. The 2,000-label cap counts every label in the set, copies included. The print log records the set with the starting record.
+
+Only put a step in a set for things that really get one of your labels. Sample tubes, for example, carry the manufacturer's label, so a kit's set prints the shipping box, bag and box labels and never one for a tube.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
