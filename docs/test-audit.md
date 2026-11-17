@@ -2,6 +2,11 @@
 
 Newest first.
 
+## 2026-11-16: sets
+
+- Promises: a set prints its steps' labels in one PDF with one log entry; steps reach records forward, backward and by chaining; every record is read as the person and one unreadable record refuses the run; the 2,000 cap counts the whole set; another site's set, template or record is refused; only managers change sets.
+- Covered: `test/sets.test.ts` (8 tests): chained run (4 pages, one entry with ids and counts only), forward run, copies and the cap with its number, cross-site set, template and starting record, hidden kit (backward) and cross-site batch (forward) refusing with no log entry, wrong-collection template, signed-out and bad requests, and the set collection's create, update and delete refusals for a non-manager and the other site.
+- Gaps skipped (and why): polymorphic relationships in backward steps (refused as unsupported by design); render time and very large steps (the cap refuses before reading more than the cap); the path-length and from-index refusals are plain input checks.
 ## 2026-11-16: retention and images
 
 - Promises: entries older than `keepDays` are deleted, recent ones stay, 0 keeps all, the default is 180; images draw in SVG and PDF; a web address is never fetched; another collection, an unreadable upload and a file that is not a PNG or JPEG give a placeholder and a warning.

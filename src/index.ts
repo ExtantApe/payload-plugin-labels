@@ -59,6 +59,7 @@ export { MAX_IMAGE_BYTES } from './images.js'
 const CLIENT = '@extantape/payload-plugin-labels/client'
 export const TEMPLATES_SLUG = 'label-templates'
 export const MEDIA_SLUG = 'label-media'
+export const SETS_SLUG = 'label-sets'
 export const PRINTS_SLUG = 'label-prints'
 
 export const labelsPlugin =
@@ -144,12 +145,40 @@ export const labelsPlugin =
         ...scope,
       ],
     }
+    const sets: CollectionConfig = {
+      slug: SETS_SLUG,
+      admin: { useAsTitle: 'name', group: 'Labels', description: 'A named list of steps that prints several kinds of label from one starting record.' },
+      access: { read: scoped(read, true), ...writes },
+      hooks: keepInScope,
+      fields: [
+        { name: 'name', type: 'text', required: true },
+        { name: 'key', type: 'text', required: true, unique: true, index: true },
+        { name: 'collection', type: 'text', required: true, admin: { description: 'The collection of the record the set starts from, such as orders.' } },
+        {
+          name: 'steps',
+          type: 'array',
+          required: true,
+          minRows: 1,
+          fields: [
+            { name: 'template', type: 'relationship', relationTo: TEMPLATES_SLUG, required: true },
+            { name: 'via', type: 'select', defaultValue: 'self', options: [{ label: 'The record itself', value: 'self' }, { label: 'Forward, through a relationship field', value: 'forward' }, { label: 'Backward, records that point at it', value: 'backward' }] },
+            { name: 'field', type: 'text', admin: { description: 'Forward: a relationship field path such as kits.bag. Backward: the field in the other collection that points at the current record.' } },
+            { name: 'collection', type: 'text', admin: { description: 'Backward only: the collection to search.' } },
+            { name: 'from', type: 'number', min: 1, admin: { description: 'Start from this earlier step (1 is the first). Empty starts from the record the set starts from.' } },
+          ],
+        },
+        { name: 'active', type: 'checkbox', defaultValue: true },
+        { name: 'notes', type: 'textarea' },
+        ...scope,
+      ],
+    }
     const prints: CollectionConfig = {
       slug: PRINTS_SLUG,
       admin: { group: 'Labels', description: 'Who printed what. Ids and counts only, never the label text.' },
       access: { read: scoped(manage, false), create: never, update: never, delete: never },
       fields: [
         { name: 'template', type: 'relationship', relationTo: TEMPLATES_SLUG },
+        { name: 'set', type: 'relationship', relationTo: SETS_SLUG },
         { name: 'collection', type: 'text' },
         { name: 'documentIds', type: 'json' },
         { name: 'labelCount', type: 'number' },
@@ -160,7 +189,7 @@ export const labelsPlugin =
     }
 
     const endpoint = printEndpoint({
-      slugs: { templates: TEMPLATES_SLUG, prints: PRINTS_SLUG, media: MEDIA_SLUG },
+      slugs: { templates: TEMPLATES_SLUG, prints: PRINTS_SLUG, media: MEDIA_SLUG, sets: SETS_SLUG },
       // access.print decides printing; without it, only access.manage may print. Only exactly true passes.
       mayPrint: async (req) => (options.access?.print ? (await print({ req } as never)) === true : (await manage({ req } as never)) === true),
       scope: async (req) => {
@@ -192,7 +221,7 @@ export const labelsPlugin =
             },
           } as CollectionConfig
         }),
-        templates, media, ...(options.log?.enabled === false ? [] : [prints])],
+        templates, media, sets, ...(options.log?.enabled === false ? [] : [prints])],
       custom: {
         ...custom,
         labels: { ...custom.labels, options: { ...options, log: { enabled: true, keepDays: 180, ...options.log } }, providers: custom.labels?.providers ?? {} },
