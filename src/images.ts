@@ -22,10 +22,17 @@ const starts = (b: Uint8Array, sig: number[]) => sig.every((v, i) => b[i] === v)
  * A source is `collection:id`, or just an id when one upload collection is allowed. A URL is never fetched. Only PNG
  * and JPEG files that sit in the collection's own static folder are read, and the file's bytes must match its type.
  */
-export function uploadLoader(args: { payload: Payload; user: unknown; uploads: string[] }): ImageLoader {
+export function uploadLoader(args: { payload: Payload; user: unknown; uploads: string[]; maxTotalBytes?: number }): ImageLoader {
+  const cap = args.maxTotalBytes ?? MAX_TOTAL_IMAGE_BYTES
+  const overCap = 'The pictures on these labels add up to more than this request may load.'
+  // Bytes reserved so far. A file's size is added before it is read, and loads run one at a time, so the running total
+  // is always current and nothing past the cap is ever read.
   let total = 0
+  let full = false
+  let queue: Promise<unknown> = Promise.resolve()
   const cache = new Map<string, Promise<LoadedImage | string>>()
   const one = async (source: string): Promise<LoadedImage | string> => {
+    if (full) return overCap
     if (/^[a-z][a-z0-9+.-]*:\/\//i.test(source) || source.startsWith('//')) return 'Images from a web address are not fetched. Use an upload.'
     const [slug, id] = source.includes(':') ? (source.split(':', 2) as [string, string]) : [args.uploads.length === 1 ? args.uploads[0]! : '', source]
     if (!slug || !args.uploads.includes(slug)) return 'That image is not in an upload collection this site allows for labels.'
@@ -46,7 +53,11 @@ export function uploadLoader(args: { payload: Payload; user: unknown; uploads: s
     const file = join(staticDir, basename(doc.filename))
     const size = (await stat(file)).size
     if (size > MAX_IMAGE_BYTES) return `That image is larger than ${MAX_IMAGE_BYTES / 1024 / 1024} MB.`
-    if (total + size > MAX_TOTAL_IMAGE_BYTES) return 'The pictures on these labels add up to more than this request may load.'
+    if (total + size > cap) {
+      full = true
+      return overCap
+    }
+    total += size
     const handle = await open(file, 'r')
     let data: Uint8Array
     try {
@@ -64,12 +75,16 @@ export function uploadLoader(args: { payload: Payload; user: unknown; uploads: s
       const h = view.getUint32(20)
       if (!w || !h || w * h > MAX_PNG_PIXELS) return `That PNG is larger than ${MAX_PNG_PIXELS / 1_000_000} megapixels.`
     }
-    total += size
     return { mime, data }
   }
-  return (source) => { 
+  return (source) => {
     let p = cache.get(source)
-    if (!p) cache.set(source, (p = one(source).catch(() => 'The image could not be read.')))
+    if (!p) {
+      // One load at a time: each waits for the one before it to finish.
+      p = queue.then(() => one(source)).catch(() => 'The image could not be read.')
+      queue = p
+      cache.set(source, p)
+    }
     return p
   }
 }
