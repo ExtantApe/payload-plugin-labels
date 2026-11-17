@@ -82,7 +82,8 @@ async function backward(payload: Payload, user: unknown, from: Item[], collectio
     // This costs a find plus a count per source record. One query over all sources would be cheaper, but it
     // would lose the print order (records grouped by source) and the early stop at the limit, so it stays per record.
     const real = await payload.count({ collection: collection as never, where: where as never, overrideAccess: true })
-    if (real.totalDocs !== readable.docs.length) throw new Refusal(403, `Some ${collection} records in this set may not be read by you. Nothing was printed.`)
+    // The readable total, not the page: the page stops at limit + 1, which would read as hidden records.
+    if (real.totalDocs !== readable.totalDocs) throw new Refusal(403, `Some ${collection} records in this set may not be read by you. Nothing was printed.`)
     for (const d of readable.docs) out.set(String((d as { id: unknown }).id), { collection, doc: d as unknown as Record<string, unknown> })
     if (out.size > limit) break
   }

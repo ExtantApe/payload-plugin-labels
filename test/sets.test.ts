@@ -81,9 +81,13 @@ beforeAll(async () => {
   await create('kits', { code: 'K2', order: id.order1, batch: id.batchA, tenant: t.a })
   await create('kits', { code: 'K3', order: id.order2, hidden: true, tenant: t.a })
   id.kit4 = (await create('kits', { code: 'K4', order: id.order3, batch: id.batchB, tenant: t.a })).id
+  // order4: four readable kits, for a backward step that reaches more records than the cap allows.
+  id.order4 = (await create('orders', { code: 'O4', tenant: t.a })).id
+  for (const c of ['K5', 'K6', 'K7', 'K8']) await create('kits', { code: c, order: id.order4, tenant: t.a })
 
   const all = { name: 'All for an order', key: 'order-all', collection: 'orders', tenant: t.a, steps: [{ template: tOrder, via: 'self' }, { template: tKit, via: 'backward', collection: 'kits', field: 'order' }, { template: tBatch, via: 'forward', field: 'batch', from: 2 }] }
   await create('label-sets', all)
+  await create('label-sets', { name: 'Kits only', key: 'kits-only', collection: 'orders', tenant: t.a, steps: [{ template: tKit, via: 'backward', collection: 'kits', field: 'order' }] })
   await create('label-sets', { name: 'Kit and order', key: 'kit-order', collection: 'kits', tenant: t.a, steps: [{ template: tKit, via: 'self' }, { template: tOrder, via: 'forward', field: 'order' }] })
   await create('label-sets', { name: 'Other site', key: 'b-set', collection: 'orders', tenant: t.b, steps: [{ template: bKit, via: 'backward', collection: 'kits', field: 'order' }] })
   // A set on site b that names site a's template: bob must not be able to use that template.
@@ -128,6 +132,12 @@ describe('print sets', () => {
     expect((await logs()).length).toBe(before)
   })
 
+  it('says too many, not hidden, when a backward step reaches more readable records than the cap', async () => {
+    // 1,000 copies leave room for 2 records; order4 has 4 kits, all readable by alice
+    const res = await post('alice', { set: 'kits-only', id: id.order4, copies: 1000 })
+    expect(res.status).toBe(413)
+    expect(((await res.json()) as { message: string }).message).toMatch(/labels/)
+  })
   it("refuses another site's set, a borrowed template, and another site's starting record", async () => {
     const before = (await logs()).length
     expect((await post('alice', { set: 'b-set', id: id.orderB })).status).toBe(403)
