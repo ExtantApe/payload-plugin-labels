@@ -174,7 +174,7 @@ export const labelsPlugin =
     }
     const prints: CollectionConfig = {
       slug: PRINTS_SLUG,
-      admin: { group: 'Labels', description: 'Who printed what. Ids and counts only, never the label text.' },
+      admin: { group: 'Labels', description: 'Who printed what. Ids and counts only, never the label text.', defaultColumns: ['createdAt', 'template', 'set', 'collection', 'labelCount', 'media', 'startSlot', 'printedBy'] },
       access: { read: scoped(manage, false), create: never, update: never, delete: never },
       fields: [
         { name: 'template', type: 'relationship', relationTo: TEMPLATES_SLUG },
@@ -182,7 +182,8 @@ export const labelsPlugin =
         { name: 'collection', type: 'text' },
         { name: 'documentIds', type: 'json' },
         { name: 'labelCount', type: 'number' },
-        { name: 'media', type: 'relationship', relationTo: MEDIA_SLUG },
+        { name: 'media', type: 'text', admin: { description: 'The key of the media printed on: a preset such as avery-5160, or a stored media.' } },
+        { name: 'startSlot', type: 'number', admin: { description: 'Sheet media only: the slot the first label went in (1 is the top left).' } },
         { name: 'printedBy', type: 'text' },
         ...scope,
       ],
