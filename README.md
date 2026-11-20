@@ -79,6 +79,8 @@ A set has a `key`, the `collection` its starting record comes from, and a list o
 
 A step starts from the starting record unless `from` names an earlier step (1 is the first). Each step's template must print from the collection that step reaches.
 
+Select all across pages: on a list view, select every row on the page and the print dialog offers "Select all N matching". The request then carries `{ "template": "<key or id>", "match": { "collection": "orders", "where": { ... }, "sort": "-createdAt" } }` instead of `ids`. The server runs that filter as the person, so their read access decides what is found, and prints every match in the list's order. The 2,000-label cap applies to matches times copies and is checked before anything is read, with the same message as ids. `match` and `ids` cannot be sent together, `match` does not work with sets, and a filter that matches nothing is refused.
+
 Print a set with `POST /api/labels/print` and `{ "set": "<key or id>", "id": "<starting record id>", "copies": 1 }`. `media` and `start` work as they do for a template. Labels come out in step order. Every record is read as the person, and if any record the set reaches is missing or hidden from them, nothing prints. That includes a backward step where some matching records exist but the person may not read them. The 2,000-label cap counts every label in the set, copies included. The print log records the set with the starting record.
 
 Only put a step in a set for things that really get one of your labels. Sample tubes, for example, carry the manufacturer's label, so a kit's set prints the shipping box, bag and box labels and never one for a tube.
