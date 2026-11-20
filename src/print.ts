@@ -137,7 +137,7 @@ export const printEndpoint = (deps: PrintDeps): Endpoint => ({
             const n = (await payload.count({ collection: tpl.collection as never, ...(filter.where ? { where: filter.where as never } : {}), user, overrideAccess: false })).totalDocs
             if (n === 0) return refuse(422, 'No documents match that filter, so there is nothing to print.')
             if (n * copies > MAX_LABELS) return refuse(413, `That is ${n * copies} labels. One request prints at most ${MAX_LABELS}.`)
-            const found = await payload.find({ ...query, limit: n, pagination: false, depth: 3 })
+            const found = await payload.find({ ...query, limit: Math.min(n, MAX_LABELS) + 1, pagination: false, depth: 3 })
             // The set can change between the count and the read. Check again so the cap holds for what prints.
             if (found.docs.length * copies > MAX_LABELS) return refuse(413, `That is ${found.docs.length * copies} labels. One request prints at most ${MAX_LABELS}.`)
             if (!found.docs.length) return refuse(422, 'No documents match that filter, so there is nothing to print.')
@@ -218,13 +218,13 @@ export const printEndpoint = (deps: PrintDeps): Endpoint => ({
       try {
         await payload.create({
           collection: deps.slugs.prints as never,
-          data: { ...(setDoc ? { set: setDoc.id, collection: setDoc.collection } : { template: logTemplate!.id, collection: logTemplate!.collection }), documentIds: ids, labelCount: total, printedBy: String((user as { id: unknown }).id), ...(deps.scopeField && scopeValue ? { [deps.scopeField]: scopeValue } : {}) } as never,
+          data: { ...(setDoc ? { set: setDoc.id, collection: setDoc.collection } : { template: logTemplate!.id, collection: logTemplate!.collection }), documentIds: ids, labelCount: total, media: media.key, ...(media.kind === 'sheet' ? { startSlot: start + 1 } : {}), printedBy: String((user as { id: unknown }).id), ...(deps.scopeField && scopeValue ? { [deps.scopeField]: scopeValue } : {}) } as never,
           overrideAccess: true,
         })
       } catch {
         return refuse(500, 'The print log could not be written, so nothing was printed.')
       }
     }
-    return new Response(new Blob([pdf as Uint8Array<ArrayBuffer>]), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="labels.pdf"' } })
+    return new Response(new Blob([pdf as Uint8Array<ArrayBuffer>]), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="labels.pdf"', 'X-Label-Count': String(total), 'X-Document-Count': String(ids.length) } })
   },
 })

@@ -186,7 +186,10 @@ export function PrintLabelsDialog({ collection, ids, apiRoute = '/api', matching
       })
       if (!r.ok) return setError(await errorText(r))
       const url = URL.createObjectURL(await r.blob())
-      setResult({ url, text: `Your labels are ready (${count * n} ${count * n === 1 ? 'label' : 'labels'}).` })
+      // The server's own count is the one in the PDF. The list's total can be stale by now.
+      const header = Number(r.headers?.get?.('X-Label-Count'))
+      const made = Number.isInteger(header) && header > 0 ? header : count * n
+      setResult({ url, text: `Your labels are ready (${made} ${made === 1 ? 'label' : 'labels'}).` })
     } catch {
       setError('The server could not be reached. Check your connection and try again.')
     } finally {

@@ -166,6 +166,12 @@ describe('select all across pages', () => {
     await screen.findByText(/Your labels are ready \(426 labels\)/)
     expect(body()).toEqual({ template: 'box', copies: 2, match: { collection: 'orders', where: { code: { like: 'rush' } }, sort: '-code' } })
   })
+  it("says the server's label count, not the list's, when the two differ", async () => {
+    printReply = () => new Response('%PDF-fake', { status: 200, headers: { 'X-Label-Count': '198' } })
+    await open({ matching: { total: 213, offer: false, selected: true, select: () => {} } })
+    fireEvent.click(screen.getByRole('button', { name: 'Print' }))
+    await screen.findByText(/Your labels are ready \(198 labels\)/)
+  })
   it('shows no offer by default and still sends the ids', async () => {
     await open({})
     expect(screen.queryByRole('button', { name: /Select all/ })).toBeNull()

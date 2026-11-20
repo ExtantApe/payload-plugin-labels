@@ -62,6 +62,8 @@ describe('POST /labels/print with match (select all across pages)', () => {
   it('prints every matching document, past the first admin page, and only the ones the person can read', async () => {
     const r = await post('alice', { template: 'a-small', match: match() })
     expect(r.status).toBe(200)
+    expect(r.headers.get('X-Label-Count')).toBe('25')
+    expect(r.headers.get('X-Document-Count')).toBe('25')
     expect(pages(new Uint8Array(await r.arrayBuffer()))).toBe(25)
     const log = await newest()
     expect(log.labelCount).toBe(25)
@@ -94,6 +96,16 @@ describe('POST /labels/print with match (select all across pages)', () => {
     expect(viaMatch.status).toBe(413)
     expect(await message(viaMatch)).toBe(`That is ${25 * copies} labels. One request prints at most ${MAX_LABELS}.`)
     expect(await message(viaIds)).toBe(`That is ${25 * copies} labels. One request prints at most ${MAX_LABELS}.`)
+    expect(await logCount()).toBe(before)
+  })
+  it('sorts on a readable field, and refuses a sort or filter on a field the person cannot read', async () => {
+    expect((await post('alice', { template: 'a-small', match: match(undefined, { sort: 'code' }) })).status).toBe(200)
+    const before = await logCount()
+    for (const m of [match(undefined, { sort: 'secret' }), match(undefined, { sort: '-secret' }), match({ secret: { like: 'h' } }), match({ or: [{ code: { like: 'A' } }, { secret: { like: 'h' } }] })]) {
+      const r = await post('alice', { template: 'a-small', match: m })
+      expect(r.status).toBe(400)
+      expect(await message(r)).toMatch(/could not be used/)
+    }
     expect(await logCount()).toBe(before)
   })
   it('refuses bad requests with plain messages and logs nothing', async () => {
