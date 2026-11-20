@@ -1,6 +1,8 @@
 import type { Access, CollectionConfig, Config, Field, Plugin, Where } from 'payload'
 
 import type { LabelProvider } from './contracts/labels.js'
+
+import { MEDIA_PRESETS } from './core/presets.js'
 import { validateElements } from './core/validate.js'
 import { printEndpoint } from './print.js'
 
@@ -107,18 +109,16 @@ export const labelsPlugin =
           ],
         }
       : undefined
-    // A media key is unique within its scope. Runs for every write, including local API calls, and reads with
-    // overrideAccess so that a duplicate in a scope the person cannot read is still found.
+    // A media key is unique across the whole collection and never a preset name. Runs for every write, including
+    // local API calls, and reads with overrideAccess so that a key in a scope the person cannot read is still found.
     const uniqueMediaKey: NonNullable<NonNullable<CollectionConfig['hooks']>['beforeChange']>[number] = async ({ data, originalDoc, operation, req }) => {
-      const merged = { ...(originalDoc as Record<string, unknown> | undefined), ...(data as Record<string, unknown>) }
-      const key = merged.key
+      const key = ({ ...(originalDoc as Record<string, unknown> | undefined), ...(data as Record<string, unknown>) }).key
       if (typeof key !== 'string' || key === '') return data
-      const raw = field ? merged[field] : undefined
-      const scopeId = raw && typeof raw === 'object' ? (raw as { id?: unknown }).id : raw
-      const where: Where = { and: [{ key: { equals: key } }, ...(field ? [scopeId === undefined || scopeId === null || scopeId === '' ? { [field]: { exists: false } } : { [field]: { equals: scopeId } }] : [])] }
+      if (Object.hasOwn(MEDIA_PRESETS, key)) throw new Error(`labels: the media key "${key}" is a built-in preset name. Pick a different key.`)
+      const where: Where = { and: [{ key: { equals: key } }] }
       if (operation === 'update' && originalDoc && (originalDoc as { id?: unknown }).id !== undefined) (where.and as Where[]).push({ id: { not_equals: (originalDoc as { id: unknown }).id } })
       const clash = await req.payload.find({ collection: MEDIA_SLUG as never, where: where as never, limit: 1, depth: 0, pagination: false, overrideAccess: true, req })
-      if (clash.docs.length) throw new Error(`labels: the media key "${key}" is already used${field ? ' in this scope' : ''}. Pick a different key.`)
+      if (clash.docs.length) throw new Error(`labels: the media key "${key}" is already used. Pick a different key.`)
       return data
     }
     const scope: Field[] = options.scopeField
@@ -153,7 +153,7 @@ export const labelsPlugin =
       hooks: { beforeChange: [...(keepInScope?.beforeChange ?? []), uniqueMediaKey] },
       fields: [
         { name: 'name', type: 'text', required: true },
-        { name: 'key', type: 'text', index: true, admin: { description: 'Optional short name to print with, such as my-sheet. Must be unique within its site.' } },
+        { name: 'key', type: 'text', unique: true, index: true, admin: { description: 'Optional short name to print with, such as my-sheet. Must be unique across all sites and not a built-in media name.' } },
         { name: 'kind', type: 'select', required: true, options: ['thermal', 'sheet'] },
         { name: 'definition', type: 'json', required: true, admin: { description: 'Sizes in millimeters, as in the media presets.' } },
         ...scope,
@@ -188,7 +188,7 @@ export const labelsPlugin =
     }
     const prints: CollectionConfig = {
       slug: PRINTS_SLUG,
-      admin: { group: 'Labels', description: 'Who printed what. Ids and counts only, never the label text.' },
+      admin: { group: 'Labels', description: 'Who printed what. Ids and counts only, never the label text.', defaultColumns: ['createdAt', 'template', 'set', 'collection', 'labelCount', 'media', 'startSlot', 'printedBy'] },
       access: { read: scoped(manage, false), create: never, update: never, delete: never },
       fields: [
         { name: 'template', type: 'relationship', relationTo: TEMPLATES_SLUG },
@@ -196,7 +196,8 @@ export const labelsPlugin =
         { name: 'collection', type: 'text' },
         { name: 'documentIds', type: 'json' },
         { name: 'labelCount', type: 'number' },
-        { name: 'media', type: 'relationship', relationTo: MEDIA_SLUG },
+        { name: 'media', type: 'text', admin: { description: 'The key of the media printed on: a preset such as avery-5160, or a stored media.' } },
+        { name: 'startSlot', type: 'number', admin: { description: 'Sheet media only: the slot the first label went in (1 is the top left).' } },
         { name: 'printedBy', type: 'text' },
         ...scope,
       ],

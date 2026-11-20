@@ -3,7 +3,7 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server'
 import { buildConfig, getPayload, type Payload } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { labelsPlugin } from '../src/index.js'
+import { labelsPlugin, MEDIA_PRESETS } from '../src/index.js'
 
 const sheet = { page: { width: 215.9, height: 279.4 }, columns: 2, rows: 2, width: 90, height: 50, top: 10, left: 10, pitchX: 100, pitchY: 60 }
 const make = async (uri: string, scoped: boolean) =>
@@ -21,7 +21,7 @@ const media = (key: string | undefined, extra: object = {}) => ({ name: `Sheet $
 const create = (p: Payload, data: never) => p.create({ collection: 'label-media' as never, data })
 const refusal = /already used/
 
-describe('media key is unique per scope', () => {
+describe('media key is unique across the collection', () => {
   let mongo: MongoMemoryReplSet
   let scoped: Payload
   let plain: Payload
@@ -42,14 +42,20 @@ describe('media key is unique per scope', () => {
     await create(scoped, media('dup', { tenant: t.a }))
     await expect(create(scoped, media('dup', { tenant: t.a }))).rejects.toThrow(refusal)
   })
-  it('allows the same key in a different scope', async () => {
+  it('refuses the same key in a different site', async () => {
     await create(scoped, media('twin', { tenant: t.a }))
-    await expect(create(scoped, media('twin', { tenant: t.b }))).resolves.toBeTruthy()
+    await expect(create(scoped, media('twin', { tenant: t.b }))).rejects.toThrow(refusal)
   })
-  it('treats records with no scope as one scope of their own', async () => {
+  it('refuses a site key that a shared record has, and the reverse', async () => {
     await create(scoped, media('shared-key'))
-    await expect(create(scoped, media('shared-key'))).rejects.toThrow(refusal)
-    await expect(create(scoped, media('shared-key', { tenant: t.a }))).resolves.toBeTruthy()
+    await expect(create(scoped, media('shared-key', { tenant: t.a }))).rejects.toThrow(refusal)
+    await create(scoped, media('site-key', { tenant: t.a }))
+    await expect(create(scoped, media('site-key'))).rejects.toThrow(refusal)
+  })
+  it('refuses a key that is a preset name, on create and on update', async () => {
+    for (const name of Object.keys(MEDIA_PRESETS)) await expect(create(scoped, media(name, { tenant: t.a }))).rejects.toThrow(/built-in preset/)
+    const ok = await create(scoped, media('fine', { tenant: t.a }))
+    await expect(scoped.update({ collection: 'label-media' as never, id: ok.id, data: { key: 'avery-5160' } as never })).rejects.toThrow(/built-in preset/)
   })
   it('refuses a change to a key another record in the scope already has, and allows keeping your own', async () => {
     await create(scoped, media('one', { tenant: t.a }))
@@ -58,10 +64,9 @@ describe('media key is unique per scope', () => {
     await expect(scoped.update({ collection: 'label-media' as never, id: two.id, data: { key: 'two', name: 'Renamed' } as never })).resolves.toBeTruthy()
     await expect(scoped.update({ collection: 'label-media' as never, id: two.id, data: { name: 'Again' } as never })).resolves.toBeTruthy()
   })
-  it('refuses moving a record into a scope that already has its key', async () => {
-    await create(scoped, media('moving', { tenant: t.a }))
-    const other = await create(scoped, media('moving', { tenant: t.b }))
-    await expect(scoped.update({ collection: 'label-media' as never, id: other.id, data: { tenant: t.a } as never })).rejects.toThrow(refusal)
+  it('refuses moving a record into a site only when the key clashes, never on a plain move', async () => {
+    const mover = await create(scoped, media('mover', { tenant: t.a }))
+    await expect(scoped.update({ collection: 'label-media' as never, id: mover.id, data: { tenant: t.b } as never })).resolves.toBeTruthy()
   })
   it('allows many records with no key', async () => {
     await create(scoped, media(undefined, { tenant: t.a }))

@@ -152,6 +152,24 @@ describe('POST /labels/print with media and a start slot', () => {
     expect(pages(new Uint8Array(await own.arrayBuffer()))).toBe(2)
     expect((await post('alice', { template: 'a-small', ids: [orders.a1], media: 'a-sheet' })).status).toBe(200)
   })
+  it('logs the media and the start slot of each print', async () => {
+    const last = async () => (await payload.find({ collection: 'label-prints' as never, sort: '-createdAt', limit: 1 })).docs[0] as unknown as Record<string, unknown>
+    await post('alice', { template: 'a-small', ids: [orders.a1], media: 'avery-5160', start: 7 })
+    expect(await last()).toMatchObject({ media: 'avery-5160', startSlot: 7 })
+    await post('alice', { template: 'a-small', ids: [orders.a1], media: 'avery-5163' })
+    expect(await last()).toMatchObject({ media: 'avery-5163', startSlot: 1 })
+    await post('alice', { template: 'a-small', ids: [orders.a1], media: 'a-sheet', start: 2 })
+    expect(await last()).toMatchObject({ media: 'a-sheet', startSlot: 2 })
+    await post('alice', { template: 'a-small', ids: [orders.a1] })
+    const thermal = await last()
+    expect(thermal.media).toBe('thermal-4x6')
+    expect(thermal.startSlot ?? null).toBeNull()
+  })
+  it('shows the media and start slot among the print log list columns', () => {
+    const c = payload.config.collections.find((x) => x.slug === 'label-prints')!
+    expect(c.admin?.defaultColumns).toEqual(expect.arrayContaining(['media', 'startSlot']))
+    expect(c.fields.map((f) => ('name' in f ? f.name : ''))).toEqual(expect.arrayContaining(['media', 'startSlot']))
+  })
   it('refuses bad media and start slots with a plain message', async () => {
     const ask = (extra: object) => post('alice', { template: 'a-small', ids: [orders.a1], ...extra })
     expect(await j(await ask({ media: 'avery-5160', start: 31 }))).toMatch(/1 to 30/)
