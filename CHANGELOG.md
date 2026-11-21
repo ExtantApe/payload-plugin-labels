@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 (2026-11-20)
+
+First published version.
 
 - **Core engine** (`src/core`, no Payload, no React): `layout(template, data, media, context)` returns positioned marks in millimeters with warnings; field tokens with dotted paths (up to 4 segments) and the formatters `date`, `money`, `upper`, `lower`, `default` and `slice`, parsed without `eval`; text fitting by shrink, ellipsis or wrap; barcode value checks; sheet grid positions from a start slot; the 4 x 6 inch thermal preset.
 - **Provider contract** (`src/contracts/labels.ts`, types only): templates, sets and tokens that other plugins can offer.
