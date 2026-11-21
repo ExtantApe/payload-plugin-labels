@@ -1,6 +1,8 @@
 import type { Access, CollectionConfig, Config, Field, Plugin, Where } from 'payload'
 
 import type { LabelProvider } from './contracts/labels.js'
+
+import { MEDIA_PRESETS } from './core/presets.js'
 import { validateElements } from './core/validate.js'
 import { printEndpoint } from './print.js'
 
@@ -107,6 +109,22 @@ export const labelsPlugin =
           ],
         }
       : undefined
+    // A media key is unique across the whole collection and never a preset name. Runs for every write, including
+    // local API calls, and reads with overrideAccess so that a key in a scope the person cannot read is still found.
+    const uniqueMediaKey: NonNullable<NonNullable<CollectionConfig['hooks']>['beforeChange']>[number] = async ({ data, originalDoc, operation, req }) => {
+      // An empty or whitespace key means no key. Cleared keys are stored as null, so any number of records can have none.
+      const d = data as Record<string, unknown>
+      if ('key' in d && (d.key == null || (typeof d.key === 'string' && d.key.trim() === ''))) d.key = null
+      if (typeof d.key === 'string') d.key = d.key.trim()
+      const key = ({ ...(originalDoc as Record<string, unknown> | undefined), ...d }).key
+      if (typeof key !== 'string' || key === '') return data
+      if (Object.hasOwn(MEDIA_PRESETS, key)) throw new Error(`labels: the media key "${key}" is a built-in preset name. Pick a different key.`)
+      const where: Where = { and: [{ key: { equals: key } }] }
+      if (operation === 'update' && originalDoc && (originalDoc as { id?: unknown }).id !== undefined) (where.and as Where[]).push({ id: { not_equals: (originalDoc as { id: unknown }).id } })
+      const clash = await req.payload.find({ collection: MEDIA_SLUG as never, where: where as never, limit: 1, depth: 0, pagination: false, overrideAccess: true, req })
+      if (clash.docs.length) throw new Error(`labels: the media key "${key}" is already used. Pick a different key.`)
+      return data
+    }
     const scope: Field[] = options.scopeField
       ? [{ name: options.scopeField, type: 'relationship', relationTo: options.scopeCollection!, admin: { description: 'Leave empty to share with every site.' } }]
       : []
@@ -136,10 +154,10 @@ export const labelsPlugin =
       slug: MEDIA_SLUG,
       admin: { useAsTitle: 'name', group: 'Labels' },
       access: { read: scoped(read, true), ...writes },
-      hooks: keepInScope,
+      hooks: { beforeChange: [...(keepInScope?.beforeChange ?? []), uniqueMediaKey] },
       fields: [
         { name: 'name', type: 'text', required: true },
-        { name: 'key', type: 'text', index: true, admin: { description: 'Optional short name to print with, such as my-sheet.' } },
+        { name: 'key', type: 'text', index: true, admin: { description: 'Optional short name to print with, such as my-sheet. Must be unique across all sites and not a built-in media name.' } },
         { name: 'kind', type: 'select', required: true, options: ['thermal', 'sheet'] },
         { name: 'definition', type: 'json', required: true, admin: { description: 'Sizes in millimeters, as in the media presets.' } },
         ...scope,
