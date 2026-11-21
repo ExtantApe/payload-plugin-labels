@@ -72,6 +72,24 @@ describe('media key is unique across the collection', () => {
     await create(scoped, media(undefined, { tenant: t.a }))
     await expect(create(scoped, media(undefined, { tenant: t.a }))).resolves.toBeTruthy()
   })
+  it('saves two records with an empty or blank key', async () => {
+    await expect(create(plain, media('', { name: 'Blank one' }))).resolves.toBeTruthy()
+    await expect(create(plain, media('   ', { name: 'Blank two' }))).resolves.toBeTruthy()
+    await expect(create(plain, media(undefined, { name: 'None one' }))).resolves.toBeTruthy()
+    await expect(create(plain, media(undefined, { name: 'None two' }))).resolves.toBeTruthy()
+  })
+  it('clears a key, twice over, and frees the key for another record', async () => {
+    const a = await create(plain, media('clear-a'))
+    const b = await create(plain, media('clear-b'))
+    const ua = await plain.update({ collection: 'label-media' as never, id: a.id, data: { key: '' } as never })
+    await expect(plain.update({ collection: 'label-media' as never, id: b.id, data: { key: '  ' } as never })).resolves.toBeTruthy()
+    expect((ua as { key?: unknown }).key ?? null).toBeNull()
+    await expect(create(plain, media('clear-a'))).resolves.toBeTruthy()
+  })
+  it('still refuses a duplicate real key after trimming', async () => {
+    await create(plain, media('real'))
+    await expect(create(plain, media(' real '))).rejects.toThrow(refusal)
+  })
   it('without a scope field the key is unique everywhere', async () => {
     await create(plain, media('only'))
     await expect(create(plain, media('only'))).rejects.toThrow(refusal)

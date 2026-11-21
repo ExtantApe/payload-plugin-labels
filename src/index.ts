@@ -112,7 +112,11 @@ export const labelsPlugin =
     // A media key is unique across the whole collection and never a preset name. Runs for every write, including
     // local API calls, and reads with overrideAccess so that a key in a scope the person cannot read is still found.
     const uniqueMediaKey: NonNullable<NonNullable<CollectionConfig['hooks']>['beforeChange']>[number] = async ({ data, originalDoc, operation, req }) => {
-      const key = ({ ...(originalDoc as Record<string, unknown> | undefined), ...(data as Record<string, unknown>) }).key
+      // An empty or whitespace key means no key. Cleared keys are stored as null, so any number of records can have none.
+      const d = data as Record<string, unknown>
+      if ('key' in d && (d.key == null || (typeof d.key === 'string' && d.key.trim() === ''))) d.key = null
+      if (typeof d.key === 'string') d.key = d.key.trim()
+      const key = ({ ...(originalDoc as Record<string, unknown> | undefined), ...d }).key
       if (typeof key !== 'string' || key === '') return data
       if (Object.hasOwn(MEDIA_PRESETS, key)) throw new Error(`labels: the media key "${key}" is a built-in preset name. Pick a different key.`)
       const where: Where = { and: [{ key: { equals: key } }] }
@@ -153,7 +157,7 @@ export const labelsPlugin =
       hooks: { beforeChange: [...(keepInScope?.beforeChange ?? []), uniqueMediaKey] },
       fields: [
         { name: 'name', type: 'text', required: true },
-        { name: 'key', type: 'text', unique: true, index: true, admin: { description: 'Optional short name to print with, such as my-sheet. Must be unique across all sites and not a built-in media name.' } },
+        { name: 'key', type: 'text', index: true, admin: { description: 'Optional short name to print with, such as my-sheet. Must be unique across all sites and not a built-in media name.' } },
         { name: 'kind', type: 'select', required: true, options: ['thermal', 'sheet'] },
         { name: 'definition', type: 'json', required: true, admin: { description: 'Sizes in millimeters, as in the media presets.' } },
         ...scope,
